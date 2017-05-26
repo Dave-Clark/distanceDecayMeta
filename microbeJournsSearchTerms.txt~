@@ -1,0 +1,4 @@
+TS = (geograph* OR biogeograph* OR macroecolog* OR dispersal OR "everything is everywhere" OR "distance decay" OR "niche theory" OR "neutral theory" OR cosmopolitan OR endemi*) AND TS = (microb* OR bacter* OR archae* OR fung* OR microorganism*) NOT TS = (fungicid* OR disease OR antibiotic* OR infect*)
+
+date of search 26/01/2016
+web of science, years 1990 - 2016
