@@ -1,0 +1,4 @@
+for f in search[0-9]*.txt; do
+	sed -i "s/\"//g" $f
+	sed -i "s/'//g" $f
+done

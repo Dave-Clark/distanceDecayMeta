@@ -1,6 +1,6 @@
 search	searchTerm	NoHits	Date
-1	TS = (biogeograph*) AND TS = (bacteria* OR archaea* OR microb* OR microorganism*) 1845  2017/05/10
-2	TS = (macroecolog*) AND TS = (bacteria* OR archaea* OR microb* OR microorganism*) 83  2017/05/10
-3	TS = ("everything is everywhere") AND TS = (bacteria* OR archaea* OR microb* OR microorganism*) 53  2017/05/10
-4	TS = ("geographic distance") AND TS = (bacteria* OR archaea* OR microb* OR microorganism*)  129 2017/05/10
-5	TS = ("distance decay") AND TS = (bacteria* OR archaea* OR microb* OR microorganism*) 103 2017/05/10
+1	TS = (biogeograph*) AND TS = (bacteria* OR archaea* OR microb* OR microorganism*) 1872  2017/06/08
+2	TS = (macroecolog*) AND TS = (bacteria* OR archaea* OR microb* OR microorganism*) 85  2017/06/08
+3	TS = ("everything is everywhere") AND TS = (bacteria* OR archaea* OR microb* OR microorganism*) 53  2017/06/08
+4	TS = ("geographic distance") AND TS = (bacteria* OR archaea* OR microb* OR microorganism*)  133 2017/06/08
+5	TS = ("distance decay") AND TS = (bacteria* OR archaea* OR microb* OR microorganism*) 107 2017/06/08

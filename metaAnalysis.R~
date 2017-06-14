@@ -1,7 +1,7 @@
-library(parallel)
 library(metagear)
 
-searchFiles <- list.files(pattern = "*[0-9].txt")
+# list WoS search results
+searchFiles <- list.files(pattern = "set[0-9].txt")
 
 cores <- detectCores()
 
@@ -10,7 +10,7 @@ searchList <- mclapply(searchFiles, read.delim, header = T, sep = "\t", quote = 
 searchData <- do.call("rbind", searchList) # merge into one df
 
 # need authors, title, abstract, DOI, Journal and date of publication
-litData <- searchData[, c(2, 10, 18, 29, 33, 34)] 
+litData <- searchData[, c(2, 10, 18, 29, 33, 34)]
 
 colnames(litData) <- c("authors", "title", "journal", "DOI", "year", "abstract") # change column headings to sensible ones
 
@@ -47,3 +47,12 @@ dir.create("maybePapers")
 maybeStudies$filename <- paste("study", 1:nrow(maybeStudies), sep = "") # create column of filenames
 
 maybePDFs <- PDFs_collect(maybeStudies, DOIcolumn = "DOI", FileNamecolumn = "filename", directory = "./maybePapers/", validatePDF = T, quiet = T, showSummary = T)
+
+####################################### MANUAL SCREENING #######################################
+library(fossil)
+
+s1Coords <- data.frame(long = c(57.3, 58.6, 59.1, 60.03, 61.5, 60.5, 57.5, 56.5, 55.75, 55.01, 54.99, 53.99, 54, 54), lat = c(62.67, 63.01, 63.24, 63.25, 63, 61, 60.75, 60.99, 60, 60.75, 61.75, 60, 60.99, 62.25))
+
+s1Coords <- s1Coords * -1
+
+s1Dist <- earth.dist(s1Coords)

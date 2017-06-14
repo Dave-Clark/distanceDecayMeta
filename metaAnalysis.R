@@ -1,7 +1,8 @@
 library(metagear)
+library(stringr)
 
 # list WoS search results
-searchFiles <- list.files(pattern = "set[0-9].txt")
+searchFiles <- list.files(pattern = "search[0-9]*.txt")
 
 cores <- detectCores()
 
