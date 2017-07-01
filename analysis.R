@@ -28,5 +28,5 @@ write.csv(allWos, "allWos.csv", quote = F, row.names = F)
 # launch abstract screener to manually curate abstracts
 abstract_screener("allWos.csv", aReviewer = "Dave",
   reviewerColumnName = "reviewer", unscreenedColumnName = "screened",
-  unscreenedValue = "NO", abstractColumnName = "abstract",
+  unscreenedValue = "not_screened", abstractColumnName = "abstract",
   titleColumnName = "title")
