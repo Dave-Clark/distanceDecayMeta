@@ -30,3 +30,8 @@ abstract_screener("allWos.csv", aReviewer = "Dave",
   reviewerColumnName = "reviewer", unscreenedColumnName = "screened",
   unscreenedValue = "not_screened", abstractColumnName = "abstract",
   titleColumnName = "title")
+
+# prelim results
+dat <- read.csv("allWos.csv")
+accept <- dat[!dat$screened == "NO", ]
+write.csv(accept, "accept_studies.csv", quote = F, row.names = F)
