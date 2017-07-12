@@ -34,4 +34,4 @@ abstract_screener("allWos.csv", aReviewer = "Dave",
 # prelim results
 dat <- read.csv("allWos.csv")
 accept <- dat[!dat$screened == "NO", ]
-write.csv(accept, "accept_studies.csv", quote = F, row.names = F)
+write.table(accept, "accept_studies.txt", row.names = F, sep = "\t", quote = F)
