@@ -2,6 +2,7 @@ library(metagear)
 library(data.table)
 library(ggplot2)
 library(cowplot)
+library(plotrix)
 
 # detect web of science search results
 dataFiles <- list.files(pattern = "search[0-9]")
@@ -41,6 +42,10 @@ write.table(accept, "accept_studies.txt", row.names = F, sep = "\t", quote = F)
 
 # read in extracted data
 acceptDat <- fread("extractedData.csv")
+
+# summary stats
+acceptDat[, summary(mantelR)]
+acceptDat], std.error(mantelR)]
 
 # create directory for figures
 dir.create("graphics/")
@@ -105,15 +110,12 @@ acceptDat[, signficant := ifelse(
   pValue <= 0.05, "signficant", "non-signficant")]
 
 # test whether HTS produces significantly higher mantel coefs than other methods
-anova1 <- aov(mantelR ~ technique, acceptDat)
-summary(anova1)
+aov1 <- aov(mantelR ~ technique, acceptDat)
+summary(aov1)
 
 # same test but only for "significant" mantel coefs
-anova2 <- aov(mantelR ~ technique, acceptDat[pValue <= 0.05])
-summary(anova2) # Approaching significance
-
-# Tukey test to explore results
-TukeyHSD(anova2) # HTS almost different to fingerprinting
+aov2 <- aov(mantelR ~ technique, acceptDat[pValue <= 0.05])
+summary(aov2) # Approaching significance
 
 # bw plot to show vals
 techPlot <- ggplot(acceptDat, aes(x = technique, y = mantelR)) +
@@ -155,21 +157,27 @@ seqDepth <- ggplot(acceptDat, aes(x = log(seqDepth), y = mantelR)) +
   geom_point(col = "grey", size = 3, alpha = 0.7) +
   stat_smooth(method = "lm", se = F, col = "black", size = 1.1) +
   scale_x_continuous(breaks = seq(2, 16, 2), labels = seq(2, 16, 2)) +
-  labs(x = "log(sampling depth)", y = expression(R[Mantel])) +
+  labs(x = "log(Sampling depth)", y = expression(R[Mantel])) +
   theme_bw() +
   theme(axis.text = element_text(size = 16),
     axis.title = element_text(size = 18),
     panel.grid.minor = element_blank(),
     panel.grid.major = element_blank())
 
+ggsave("graphics/seq_depth.pdf", seqDepth, device = "pdf")
+
 # test whether indexes produce different results
 # exclude those with 3 or fewer occurences
 # perform anova test
-anova3 <- aov(mantelR ~ simIndex, acceptDat[, if(.N > 3) .SD, by = simIndex])
-summary(anova3) # sig differences found
+aov5 <- aov(mantelR ~ simIndex, acceptDat)
+summary(aov5) # sig differences found
 
-# perform Tukey test
-TukeyHSD(anova3)
+# perform tukey test
+aov5Tukey <- setDT(as.data.frame(TukeyHSD(aov5)$simIndex), keep.rownames = T)
+names(aov5Tukey)[ncol(aov5Tukey)] <- "p_adj"
+
+# get comparisons that are significantly different
+aov5Tukey[p_adj <= 0.05]
 
 # bw plot of mantel R vs sim indexes
 simPlot <- ggplot(acceptDat[, if(.N > 3) .SD, by = simIndex],
@@ -193,5 +201,85 @@ ggsave("graphics/sim_index.pdf", simPlot, device = "pdf", width = 5)
 # phylo = unifrac, betamntd betampd, rao
 # abund = bray. hornmorista, euclid, hellinger, theta
 # binary = jaccard, Raup-Crick, sorensen, simpson, beta sim
+acceptDat[, indType := "Binary"]
+acceptDat[
+  simIndex %in% c("bray", "Morisita-horn", "euclidean", "hellinger", "theta"), indType := "Abundance"]
+acceptDat[simIndex %in% c("unifrac", "betaMNTD", "betaMPD", "rao"),
+  indType := "Phylogenetic"]
 
-# now test biological hypotheses
+# test different index types
+aov6 <- aov(mantelR ~ indType, acceptDat)
+TukeyHSD(aov6)
+
+# plot different index types
+indexType <- ggplot(acceptDat, aes(x = indType, y = mantelR)) +
+  geom_hline(yintercept = 0, linetype = 2, alpha = 0.5) +
+  geom_boxplot() +
+  theme_bw() +
+  labs(x = "Index type", y = expression(R[Mantel])) +
+  theme(axis.text = element_text(size = 16),
+    axis.title = element_text(size = 18),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_blank())
+
+ggsave("graphics/indext_type.pdf", indexType, device = "pdf", width = 5)
+
+# biological factors
+# test for taxa influence
+aov7 <- aov(mantelR ~ taxa, acceptDat)
+summary(aov7)
+
+# test taxa influence for only significant results
+aov8 <- aov(mantelR ~ taxa, acceptDat[pValue <= 0.05])
+
+# Tukey test to find which groups different
+aov8Tukey <- setDT(as.data.frame(TukeyHSD(aov8)$taxa), keep.rownames = T)
+names(aov8Tukey)[ncol(aov8Tukey)] <- "p_adj"
+
+# get significant diff groups
+aov8Tukey[p_adj <= 0.05]
+
+# remove bac-fungi coefs and re-test
+aov9 <- aov(mantelR ~ taxa, acceptDat[pValue <= 0.05 & taxa != "bac_fungi"])
+summary(aov9)
+
+# test for biome effect
+aov10 <- aov(mantelR ~ biome, acceptDat[, if(.N > 3) .SD, by = biome])
+summary(aov10)
+
+# conduct tukey test
+aov10Tukey <- setDT(as.data.frame(TukeyHSD(aov10)$biome), keep.rownames = T)
+names(aov10Tukey)[ncol(aov10Tukey)] <- "p_adj"
+
+# get sig different groups
+aov10Tukey[p_adj <= 0.05]
+
+# test for different env medium
+aov11 <- aov(mantelR ~ medium, acceptDat)
+summary(aov11)
+
+# Tukey test to find sig differences
+aov11Tukey <- TukeyHSD(aov11)
+
+# test for relationship with scale
+lm3 <- lm(mantelR ~ log(scale), acceptDat)
+summary(lm3)
+
+#plot scale against mantelr
+scalePlot <- ggplot(acceptDat, aes(x = log(scale), y = mantelR)) +
+  geom_point(col = "grey", size = 3, alpha = 0.7) +
+  stat_smooth(method = "lm", se = F, col = "black", size = 1.1) +
+  labs(x = "log(Scale (km))", y = expression(R[Mantel])) +
+  theme_bw() +
+  theme(axis.text = element_text(size = 16),
+    axis.title = element_text(size = 18),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_blank())
+
+ggsave("graphics/scale.pdf", scalePlot, device = "pdf")
+
+# test for scale for significant results
+lm4 <- lm(mantelR ~ log(scale), acceptDat[pValue <= 0.05])
+
+# correct otu def column
+acceptDat[otuDefinition == 97, otuDefinition := 0.97]
