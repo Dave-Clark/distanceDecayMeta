@@ -1,4 +1,5 @@
 library(metagear)
+# for analysis
 library(data.table)
 library(ggplot2)
 library(cowplot)
@@ -45,7 +46,7 @@ acceptDat <- fread("extractedData.csv")
 
 # summary stats
 acceptDat[, summary(mantelR)]
-acceptDat], std.error(mantelR)]
+acceptDat[, std.error(mantelR)]
 
 # create directory for figures
 dir.create("graphics/")
@@ -71,12 +72,12 @@ hitYear <- ggplot(hitsYear,
     axis.title = element_text(size = 18),
     panel.grid.minor = element_blank(),
     panel.grid.major = element_blank(),
-    legend.position = c(0.15, 0.9),
+    legend.position = c(0.16, 0.9),
     legend.text = element_text(size = 16),
     legend.title = element_blank(),
     legend.key.width = unit(1.5, "cm"))
 
-ggsave("graphics/data_year.pdf", hitYear, device = "pdf")
+ggsave("graphics/data_year.pdf", hitYear, device = "pdf", width = 7, height = 7)
 
 # get number of studies per journal
 hitsJourn <- acceptDat[, .(nStudies = length(unique(title))), by = journal]
@@ -104,10 +105,6 @@ acceptDat[, technique := "fingerprinting"]
 acceptDat[method %in% c("illumina", "pyrosequencing", "Pac-Bio", "Ion Torrent"),
   technique := "HTS"]
 acceptDat[method %in% c("morphology", "sanger"), technique := "Other"]
-
-# add "signficance" column
-acceptDat[, signficant := ifelse(
-  pValue <= 0.05, "signficant", "non-signficant")]
 
 # test whether HTS produces significantly higher mantel coefs than other methods
 aov1 <- aov(mantelR ~ technique, acceptDat)
@@ -166,6 +163,24 @@ seqDepth <- ggplot(acceptDat, aes(x = log(seqDepth), y = mantelR)) +
 
 ggsave("graphics/seq_depth.pdf", seqDepth, device = "pdf")
 
+# does adding sample effort improve model
+lm3 <- lm(mantelR ~ log(nSamples) + log(seqDepth), acceptDat)
+summary(lm3)
+
+# compare to seqDepth alone
+AIC(lm1)
+AIC(lm3)
+
+# effect of sample effort
+lm4 <- lm(mantelR ~ log(nSamples), acceptDat)
+summary(lm4) # NS
+
+# no real improvement
+lm5 <- lm(mantelR ~ log(nSamples) * log(seqDepth), acceptDat)
+
+# test correlation between seq depth and sample effort
+cor.test(log(acceptDat$nSamples), log(acceptDat$seqDepth))
+
 # test whether indexes produce different results
 # exclude those with 3 or fewer occurences
 # perform anova test
@@ -178,24 +193,6 @@ names(aov5Tukey)[ncol(aov5Tukey)] <- "p_adj"
 
 # get comparisons that are significantly different
 aov5Tukey[p_adj <= 0.05]
-
-# bw plot of mantel R vs sim indexes
-simPlot <- ggplot(acceptDat[, if(.N > 3) .SD, by = simIndex],
-    aes(x = simIndex, y = mantelR)) +
-  geom_hline(yintercept = 0, linetype = 2, alpha = 0.5) +
-  geom_boxplot() +
-  theme_bw() +
-  scale_x_discrete(
-    labels = c(expression(beta~MNTD), "Bray-Curtis", "Euclidean", "Hellinger",
-      "Jaccard", "Raup-Crick", "S\u00F8rensen", "Unifrac")) +
-  labs(x = "Similarity index", y = expression(R[Mantel])) +
-  theme(axis.text.y = element_text(size = 16),
-    axis.text.x = element_text(size = 14, angle = 90, hjust = 1, vjust = 0.5),
-    axis.title = element_text(size = 18),
-    panel.grid.minor = element_blank(),
-    panel.grid.major = element_blank())
-
-ggsave("graphics/sim_index.pdf", simPlot, device = "pdf", width = 5)
 
 # divide into different index types "phylogenetic", "abundance" or "binary"
 # phylo = unifrac, betamntd betampd, rao
@@ -211,20 +208,45 @@ acceptDat[simIndex %in% c("unifrac", "betaMNTD", "betaMPD", "rao"),
 aov6 <- aov(mantelR ~ indType, acceptDat)
 TukeyHSD(aov6)
 
+# bw plot of mantel R vs sim indexes
+simPlot <- ggplot(acceptDat[, if(.N > 3) .SD, by = simIndex],
+    aes(x = simIndex, y = mantelR)) +
+  geom_hline(yintercept = 0, linetype = 2, alpha = 0.5) +
+  geom_boxplot() +
+  theme_bw() +
+  scale_x_discrete(
+    labels = c(expression(beta~MNTD), "Bray-Curtis", "Euclidean", "Hellinger",
+      "Jaccard", "Raup-Crick", "S\u00F8rensen", "Unifrac")) +
+  labs(y = expression(R[Mantel])) +
+  theme(axis.text.y = element_text(size = 16),
+    axis.text.x = element_text(size = 14, angle = 90, hjust = 1, vjust = 0.5),
+    axis.title = element_text(size = 18),
+    axis.title.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_blank())
+
 # plot different index types
 indexType <- ggplot(acceptDat, aes(x = indType, y = mantelR)) +
   geom_hline(yintercept = 0, linetype = 2, alpha = 0.5) +
   geom_boxplot() +
   theme_bw() +
-  labs(x = "Index type", y = expression(R[Mantel])) +
+  labs(y = expression(R[Mantel])) +
   theme(axis.text = element_text(size = 16),
     axis.title = element_text(size = 18),
+    axis.text.x = element_text(size = 14, angle = 90, hjust = 1, vjust = 0.5),
+    axis.title.x = element_blank(),
     panel.grid.minor = element_blank(),
     panel.grid.major = element_blank())
 
-ggsave("graphics/indext_type.pdf", indexType, device = "pdf", width = 5)
+# combine index and indexType plots into panel
+indexPlots <- plot_grid(simPlot, indexType, labels = "AUTO", label_size = 16,
+  align = "hv")
 
-# biological factors
+# write panel plot to file
+ggsave("graphics/index_panel.pdf", indexPlots, device = "pdf", height = 4,
+  width = 8)
+
+### biological factors ###
 # test for taxa influence
 aov7 <- aov(mantelR ~ taxa, acceptDat)
 summary(aov7)
@@ -262,8 +284,8 @@ summary(aov11)
 aov11Tukey <- TukeyHSD(aov11)
 
 # test for relationship with scale
-lm3 <- lm(mantelR ~ log(scale), acceptDat)
-summary(lm3)
+lm6 <- lm(mantelR ~ log(scale), acceptDat)
+summary(lm6)
 
 #plot scale against mantelr
 scalePlot <- ggplot(acceptDat, aes(x = log(scale), y = mantelR)) +
@@ -278,8 +300,5 @@ scalePlot <- ggplot(acceptDat, aes(x = log(scale), y = mantelR)) +
 
 ggsave("graphics/scale.pdf", scalePlot, device = "pdf")
 
-# test for scale for significant results
-lm4 <- lm(mantelR ~ log(scale), acceptDat[pValue <= 0.05])
-
-# correct otu def column
-acceptDat[otuDefinition == 97, otuDefinition := 0.97]
+# test if scale and sample effort are correlated
+acceptDat[, cor.test(log(nSamples), log(seqDepth))]
