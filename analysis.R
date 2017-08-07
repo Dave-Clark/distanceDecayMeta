@@ -302,3 +302,7 @@ ggsave("graphics/scale.pdf", scalePlot, device = "pdf")
 
 # test if scale and sample effort are correlated
 acceptDat[, cor.test(log(nSamples), log(seqDepth))]
+
+# add sampling effort to scale
+lm7 <- lm(mantelR ~ log(nSamples) + log(scale), acceptDat)
+summary(lm7)
