@@ -1,9 +1,4 @@
 library(metagear)
-# for analysis
-library(data.table)
-library(ggplot2)
-library(cowplot)
-library(plotrix)
 
 # detect web of science search results
 dataFiles <- list.files(pattern = "search[0-9]")
@@ -41,6 +36,12 @@ dat <- read.csv("allWos.csv")
 accept <- dat[!dat$screened == "NO", ]
 write.table(accept, "accept_studies.txt", row.names = F, sep = "\t", quote = F)
 
+# for analysis
+library(data.table)
+library(ggplot2)
+library(cowplot)
+library(plotrix)
+
 # read in extracted data
 acceptDat <- fread("extractedData.csv")
 
@@ -55,12 +56,15 @@ dir.create("graphics/")
 hitsYear <- acceptDat[order(year),
   .(studies = length(unique(title)), dataPoints = .N), by = year]
 
+# calculate cumulative totals
+hitsYear[, dataPoints := cumsum(dataPoints)]
+hitsYear[, studies := cumsum(studies)]
+
 # melt to long format
 hitsYear <- melt(hitsYear, id = "year")
 
 # plot studies + data points by year
-hitYear <- ggplot(hitsYear,
-    aes(x = year, y = cumsum(value), group = variable)) +
+hitYear <- ggplot(hitsYear, aes(x = year, y = value, group = variable)) +
   geom_line(aes(linetype = variable), size = 1.2, color = "lightgrey") +
   geom_point(aes(shape = variable), size = 4) +
   theme_bw() +
@@ -161,7 +165,8 @@ seqDepth <- ggplot(acceptDat, aes(x = log(seqDepth), y = mantelR)) +
     panel.grid.minor = element_blank(),
     panel.grid.major = element_blank())
 
-ggsave("graphics/seq_depth.pdf", seqDepth, device = "pdf")
+ggsave("graphics/seq_depth.pdf", seqDepth, device = "pdf", height = 5,
+  width = 5)
 
 # does adding sample effort improve model
 lm3 <- lm(mantelR ~ log(nSamples) + log(seqDepth), acceptDat)
@@ -280,6 +285,20 @@ aov10Tukey[p_adj <= 0.05]
 aov11 <- aov(mantelR ~ medium, acceptDat)
 summary(aov11)
 
+medPlot <- ggplot(acceptDat[!is.na(medium), ], aes(x = medium, y = mantelR)) +
+  geom_hline(yintercept = 0, linetype = 2, alpha = 0.5) +
+  geom_boxplot() +
+  theme_bw() +
+  labs(y = expression(R[Mantel]), x = "Environmental material") +
+  theme(axis.text = element_text(size = 16),
+    axis.title = element_text(size = 18),
+    axis.text.x = element_text(size = 14, angle = 90, hjust = 1, vjust = 0.5),
+    axis.title.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_blank())
+
+ggsave("graphics/medium.pdf", medPlot, device = "pdf", height = 5, width = 5)
+
 # Tukey test to find sig differences
 aov11Tukey <- TukeyHSD(aov11)
 
@@ -298,7 +317,7 @@ scalePlot <- ggplot(acceptDat, aes(x = log(scale), y = mantelR)) +
     panel.grid.minor = element_blank(),
     panel.grid.major = element_blank())
 
-ggsave("graphics/scale.pdf", scalePlot, device = "pdf")
+ggsave("graphics/scale.pdf", scalePlot, device = "pdf", width = 5, height = 5)
 
 # test if scale and sample effort are correlated
 acceptDat[, cor.test(log(nSamples), log(seqDepth))]
