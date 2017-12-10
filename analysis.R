@@ -302,6 +302,12 @@ ggsave("graphics/medium.pdf", medPlot, device = "pdf", height = 5, width = 5)
 # Tukey test to find sig differences
 aov11Tukey <- TukeyHSD(aov11)
 
+# test for studies that include more than one focal taxa
+multStudies <- dat[, if(length(unique(taxa)) > 1) .SD,
+  .SDcols = c("taxa", "mantelR", "title"), by = title]
+
+summary(aov(mantelR ~ taxa, multStudies))
+
 # test for relationship with scale
 lm6 <- lm(mantelR ~ log(scale), acceptDat)
 summary(lm6)
