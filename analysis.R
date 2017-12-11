@@ -122,6 +122,8 @@ summary(aov2) # Approaching significance
 techPlot <- ggplot(acceptDat, aes(x = technique, y = mantelR)) +
   geom_hline(yintercept = 0, linetype = 2, alpha = 0.5) +
   geom_boxplot() +
+  scale_x_discrete(labels = paste0(unique(acceptDat$technique), "\n", " (n = ",
+    acceptDat[, .N, by = technique]$N, ")")) +
   theme_bw() +
   labs(x = "Method", y = expression(R[Mantel])) +
   theme(axis.text = element_text(size = 16),
@@ -132,6 +134,8 @@ techPlot <- ggplot(acceptDat, aes(x = technique, y = mantelR)) +
 sigTech <- ggplot(acceptDat[pValue <= 0.05], aes(x = technique, y = mantelR)) +
   geom_hline(yintercept = 0, linetype = 2, alpha = 0.5) +
   geom_boxplot() +
+  scale_x_discrete(labels = paste0(unique(acceptDat$technique), "\n", " (n = ",
+    acceptDat[pValue <= 0.05, .N, by = technique]$N, ")")) +
   theme_bw() +
   labs(x = "Method", y = expression(R[Mantel])) +
   theme(axis.text = element_text(size = 16),
@@ -213,27 +217,45 @@ acceptDat[simIndex %in% c("unifrac", "betaMNTD", "betaMPD", "rao"),
 aov6 <- aov(mantelR ~ indType, acceptDat)
 TukeyHSD(aov6)
 
+# subet indices with more than 3 coefficients
+simData <- acceptDat[, if(.N > 3) .SD, by = simIndex]
+
+# reorder the factor levels
+simData$simIndex <- factor(simData$simIndex,
+  levels = c("bray", "euclidean", "hellinger", "jaccard", "Raup-Crick",
+    "sorensen", "betaMNTD", "unifrac"),
+  labels = c("Bray-Curtis", "Euclidean", "Hellinger", "Jaccard", "Raup-Crick",
+    "S\U00F8rensen", "\U03B2-MNTD", "Unifrac"))
+
 # bw plot of mantel R vs sim indexes
-simPlot <- ggplot(acceptDat[, if(.N > 3) .SD, by = simIndex],
-    aes(x = simIndex, y = mantelR)) +
+simPlot <- ggplot(simData, aes(x = simIndex, y = mantelR)) +
   geom_hline(yintercept = 0, linetype = 2, alpha = 0.5) +
   geom_boxplot() +
+  scale_x_discrete(labels = paste0(levels(simData$simIndex), "\n", "(n = ",
+    simData[, .N, by = simIndex][order(simIndex)]$N, ")")) +
+  geom_vline(xintercept = c(3.5, 6.5), col = "grey") +
+  annotate("text", x = c(3.4, 6.4, 8.5), y = 0.95, hjust = 1, size = 4,
+    label = c("Abundance", "Binary", "Phylogenetic")) +
   theme_bw() +
-  scale_x_discrete(
-    labels = c(expression(beta~MNTD), "Bray-Curtis", "Euclidean", "Hellinger",
-      "Jaccard", "Raup-Crick", "S\u00F8rensen", "Unifrac")) +
   labs(y = expression(R[Mantel])) +
   theme(axis.text.y = element_text(size = 16),
     axis.text.x = element_text(size = 14, angle = 90, hjust = 1, vjust = 0.5),
     axis.title = element_text(size = 18),
     axis.title.x = element_blank(),
+    strip.text.x = element_text(size = 16),
     panel.grid.minor = element_blank(),
     panel.grid.major = element_blank())
+
+# reorder factor levels to match
+acceptDat$indType <- factor(acceptDat$indType,
+  levels = c("Abundance", "Binary", "Phylogenetic"))
 
 # plot different index types
 indexType <- ggplot(acceptDat, aes(x = indType, y = mantelR)) +
   geom_hline(yintercept = 0, linetype = 2, alpha = 0.5) +
   geom_boxplot() +
+  scale_x_discrete(labels = paste0(levels(acceptDat$indType), "\n", " (n = ",
+    acceptDat[, .N, by = indType][order(indType)]$N, ")")) +
   theme_bw() +
   labs(y = expression(R[Mantel])) +
   theme(axis.text = element_text(size = 16),
@@ -245,10 +267,10 @@ indexType <- ggplot(acceptDat, aes(x = indType, y = mantelR)) +
 
 # combine index and indexType plots into panel
 indexPlots <- plot_grid(simPlot, indexType, labels = "AUTO", label_size = 16,
-  align = "hv")
+  align = "hv", rel_widths = c(1, 0.6))
 
 # write panel plot to file
-ggsave("graphics/index_panel.pdf", indexPlots, device = "pdf", height = 4,
+ggsave("graphics/index_panel.pdf", indexPlots, device = cairo_pdf, height = 4,
   width = 8)
 
 ### biological factors ###
