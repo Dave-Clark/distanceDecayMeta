@@ -105,13 +105,14 @@ journPlot <- ggplot(tail(hitsJourn, 15),
 ggsave("graphics/journal_studies.pdf", journPlot, device = "pdf", width = 10)
 
 # categorise methods into fingerprinting, HTS, or other
-acceptDat[, technique := "fingerprinting"]
-acceptDat[method %in% c("illumina", "pyrosequencing", "Pac-Bio", "Ion Torrent"),
-  technique := "HTS"]
-acceptDat[method %in% c("morphology", "sanger"), technique := "Other"]
+acceptDat[, resolution := "Intermediate"]
+acceptDat[method %in%
+  c("sanger", "illumina", "pyrosequencing", "Pac-Bio", "Ion Torrent"),
+  resolution := "High"]
+acceptDat[method %in% c("morphology"), resolution := "Low"]
 
 # test whether HTS produces significantly higher mantel coefs than other methods
-aov1 <- aov(mantelR ~ technique, acceptDat)
+aov1 <- aov(mantelR ~ resolution, acceptDat)
 summary(aov1)
 
 # same test but only for "significant" mantel coefs
@@ -119,34 +120,38 @@ aov2 <- aov(mantelR ~ technique, acceptDat[pValue <= 0.05])
 summary(aov2) # Approaching significance
 
 # bw plot to show vals
-techPlot <- ggplot(acceptDat, aes(x = technique, y = mantelR)) +
+techPlot <- ggplot(acceptDat, aes(x = resolution, y = mantelR)) +
   geom_hline(yintercept = 0, linetype = 2, alpha = 0.5) +
   geom_boxplot() +
-  scale_x_discrete(labels = paste0(unique(acceptDat$technique), "\n", " (n = ",
-    acceptDat[, .N, by = technique]$N, ")")) +
+  scale_x_discrete(labels = paste0(unique(acceptDat$resolution), "\n", " (n = ",
+    acceptDat[, .N, by = resolution]$N, ")")) +
   theme_bw() +
-  labs(x = "Method", y = expression(R[Mantel])) +
+  labs(y = expression(R[Mantel])) +
   theme(axis.text = element_text(size = 16),
     axis.title = element_text(size = 18),
+    axis.title.x = element_blank(),
     panel.grid.minor = element_blank(),
-    panel.grid.major = element_blank())
+    panel.grid.major = element_blank(),
+    aspect.ratio = 1)
 
-sigTech <- ggplot(acceptDat[pValue <= 0.05], aes(x = technique, y = mantelR)) +
+sigTech <- ggplot(acceptDat[pValue <= 0.05], aes(x = resolution, y = mantelR)) +
   geom_hline(yintercept = 0, linetype = 2, alpha = 0.5) +
   geom_boxplot() +
-  scale_x_discrete(labels = paste0(unique(acceptDat$technique), "\n", " (n = ",
-    acceptDat[pValue <= 0.05, .N, by = technique]$N, ")")) +
+  scale_x_discrete(labels = paste0(unique(acceptDat$resolution), "\n", " (n = ",
+    acceptDat[pValue <= 0.05, .N, by = resolution]$N, ")")) +
   theme_bw() +
-  labs(x = "Method", y = expression(R[Mantel])) +
+  labs(y = expression(R[Mantel])) +
   theme(axis.text = element_text(size = 16),
     axis.title = element_text(size = 18),
+    axis.title.x = element_blank(),
     panel.grid.minor = element_blank(),
-    panel.grid.major = element_blank())
+    panel.grid.major = element_blank(),
+    aspect.ratio = 1)
 
 bwPlots <- plot_grid(techPlot, sigTech, labels = "AUTO", label_size = 16,
   align = "hv")
 
-ggsave("graphics/tech_mantel.pdf", bwPlots, device = "pdf", width = 10,
+ggsave("graphics/tech_mantel.pdf", bwPlots, device = "pdf", width = 8,
   height = 5)
 
 # test whether mantel R is related to sample depth
@@ -266,7 +271,7 @@ indexType <- ggplot(acceptDat, aes(x = indType, y = mantelR)) +
     panel.grid.major = element_blank())
 
 # combine index and indexType plots into panel
-indexPlots <- plot_grid(simPlot, indexType, labels = "AUTO", label_size = 16,
+indexPlots <- plot_grid(indexType, simPlot, labels = "AUTO", label_size = 16,
   align = "hv", rel_widths = c(1, 0.6))
 
 # write panel plot to file
