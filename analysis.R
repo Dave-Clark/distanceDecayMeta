@@ -116,7 +116,7 @@ aov1 <- aov(mantelR ~ resolution, acceptDat)
 summary(aov1)
 
 # same test but only for "significant" mantel coefs
-aov2 <- aov(mantelR ~ technique, acceptDat[pValue <= 0.05])
+aov2 <- aov(mantelR ~ resolution, acceptDat[pValue <= 0.05])
 summary(aov2) # Approaching significance
 
 # bw plot to show vals
@@ -127,7 +127,8 @@ techPlot <- ggplot(acceptDat, aes(x = resolution, y = mantelR)) +
     acceptDat[, .N, by = resolution]$N, ")")) +
   theme_bw() +
   labs(y = expression(R[Mantel])) +
-  theme(axis.text = element_text(size = 16),
+  theme(axis.text.y = element_text(size = 16),
+    axis.text.x = element_text(size = 14),
     axis.title = element_text(size = 18),
     axis.title.x = element_blank(),
     panel.grid.minor = element_blank(),
@@ -141,7 +142,8 @@ sigTech <- ggplot(acceptDat[pValue <= 0.05], aes(x = resolution, y = mantelR)) +
     acceptDat[pValue <= 0.05, .N, by = resolution]$N, ")")) +
   theme_bw() +
   labs(y = expression(R[Mantel])) +
-  theme(axis.text = element_text(size = 16),
+  theme(axis.text.y = element_text(size = 16),
+    axis.text.x = element_text(size = 14),
     axis.title = element_text(size = 18),
     axis.title.x = element_blank(),
     panel.grid.minor = element_blank(),
@@ -151,7 +153,7 @@ sigTech <- ggplot(acceptDat[pValue <= 0.05], aes(x = resolution, y = mantelR)) +
 bwPlots <- plot_grid(techPlot, sigTech, labels = "AUTO", label_size = 16,
   align = "hv")
 
-ggsave("graphics/tech_mantel.pdf", bwPlots, device = "pdf", width = 8,
+ggsave("graphics/tech_mantel.pdf", bwPlots, device = "pdf", width = 8.5,
   height = 5)
 
 # test whether mantel R is related to sample depth
@@ -167,7 +169,7 @@ seqDepth <- ggplot(acceptDat, aes(x = log(seqDepth), y = mantelR)) +
   geom_point(col = "grey", size = 3, alpha = 0.7) +
   stat_smooth(method = "lm", se = F, col = "black", size = 1.1) +
   scale_x_continuous(breaks = seq(2, 16, 2), labels = seq(2, 16, 2)) +
-  labs(x = "log(Sampling depth)", y = expression(R[Mantel])) +
+  labs(x = "log(Coverage)", y = expression(R[Mantel])) +
   theme_bw() +
   theme(axis.text = element_text(size = 16),
     axis.title = element_text(size = 18),
@@ -316,11 +318,13 @@ medPlot <- ggplot(acceptDat[!is.na(medium), ], aes(x = medium, y = mantelR)) +
   geom_hline(yintercept = 0, linetype = 2, alpha = 0.5) +
   geom_boxplot() +
   theme_bw() +
-  labs(y = expression(R[Mantel]), x = "Environmental material") +
+  scale_x_discrete(labels = paste0(
+    unique(acceptDat[!is.na(medium), medium]), "\n", " (n = ",
+    acceptDat[!is.na(medium), .N, by = medium]$N, ")")) +
+  labs(y = expression(R[Mantel]), x = "Micro-habitat") +
   theme(axis.text = element_text(size = 16),
     axis.title = element_text(size = 18),
     axis.text.x = element_text(size = 14, angle = 90, hjust = 1, vjust = 0.5),
-    axis.title.x = element_blank(),
     panel.grid.minor = element_blank(),
     panel.grid.major = element_blank())
 
