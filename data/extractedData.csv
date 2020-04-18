@@ -1,5 +1,5 @@
 title,year,journal,method,markerGene,nSamples,seqDepth,simIndex,otuDefinition,taxa,medium,biome,scale,mantelR,pValue,notes
-Plant diversity represents the prevalent determinant of soil fungal community structure across temperate grasslands in northern China,2017,Soil Biology and Biochemistry,illumina,,290,1160000,bray,0.97,fungi,soil,grassland,4000,0.338,0.001,NA
+Plant diversity represents the prevalent determinant of soil fungal community structure across temperate grasslands in northern China,2017,Soil Biology and Biochemistry,illumina,,290,4000,bray,0.97,fungi,soil,grassland,4000,0.338,0.001,NA
 The differentiation of soil bacterial communities along a precipitation and temperature gradient in the eastern Inner Mongolia steppe,2017,Catena,pyrosequencing,16S,45,2735,unifrac,0.97,bacteria,soil,grassland,451,0.86,0.001,NA
 The differentiation of soil bacterial communities along a precipitation and temperature gradient in the eastern Inner Mongolia steppe,2017,Catena,pyrosequencing,16S,45,2735,betaMNTD,0.97,bacteria,soil,grassland,451,0.91,0.001,NA
 Bacterial Diversity Patterns Differ in Soils Developing in Sub-tropical and Cool-Temperate Ecosystems,2017,Microbial Ecology,pyrosequencing,16S,75,11248,bray,0.97,bacteria,soil,dune,1700,0.13,0.35,NA
@@ -68,7 +68,7 @@ Spatial scale drives patterns in soil bacterial diversity,2016,Environmental Mic
 Spatial scale drives patterns in soil bacterial diversity,2016,Environmental Microbiology,illumina,16S,22,1000,unifrac,0.97,bacteria,soil,grassland,0.0001,0.118,0.223,NA
 Spatial scale drives patterns in soil bacterial diversity,2016,Environmental Microbiology,illumina,16S,22,1000,unifrac,0.97,bacteria,soil,grassland,0.0001,-0.161,0.072,NA
 Fungal communities in sediments of subtropical Chinese seas as estimated by DNA metabarcoding,2016,Scientific Reports,pyrosequencing,ITS,30,3433,bray,0.97,fungi,sediment,sediment,997.47,0.2959,0.001,NA
-Microbial eukaryote plankton communities of high-mountain lakes from three continents exhibit strong biogeographic patterns,2016,Molecular Ecology,illumina,18S,13,36744,sorensen,1,eukarya,water,lake,12270,0.536,0.00002,swarm
+Microbial eukaryote plankton communities of high-mountain lakes from three continents exhibit strong biogeographic patterns,2016,Molecular Ecology,illumina,18S,13,36744,sorensen,1,eukarya,water,lake,12270,0.536,2E-05,swarm
 Bacterial community dissimilarity between the surface and subsurface soils equals horizontal differences over several kilometers in the western Tibetan Plateau,2016,Environmental Microbiology,pyrosequencing,16S,12,2900,bray,0.97,bacteria,soil,grassland,923,0.35,0.004,surface
 Bacterial community dissimilarity between the surface and subsurface soils equals horizontal differences over several kilometers in the western Tibetan Plateau,2016,Environmental Microbiology,pyrosequencing,16S,12,2900,bray,0.97,bacteria,soil,grassland,923,0.38,0.002,sub
 Biogeographic Patterns Between Bacterial Phyllosphere Communities of the Southern Magnolia (Magnolia grandiflora) in a Small Forest,2016,Microbial Ecology,illumina,16S,91,27719,theta,0.97,bacteria,host,forest,0.45,0.213,0.001,NA
