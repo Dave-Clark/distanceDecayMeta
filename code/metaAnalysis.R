@@ -1,10 +1,12 @@
 library(metagear)
 library(stringr)
+library(parallel)
+library(data.table)
 
 # list WoS search results
 searchFiles <- list.files(pattern = "search[0-9]*.txt")
 
-cores <- detectCores()
+parallel::cores <- detectCores()
 
 searchList <- mclapply(searchFiles, read.delim, header = T, sep = "\t", quote = NULL, mc.cores = cores) # read data in parallel
 
@@ -50,10 +52,51 @@ maybeStudies$filename <- paste("study", 1:nrow(maybeStudies), sep = "") # create
 maybePDFs <- PDFs_collect(maybeStudies, DOIcolumn = "DOI", FileNamecolumn = "filename", directory = "./maybePapers/", validatePDF = T, quiet = T, showSummary = T)
 
 ####################################### MANUAL SCREENING #######################################
-library(fossil)
 
-s1Coords <- data.frame(long = c(57.3, 58.6, 59.1, 60.03, 61.5, 60.5, 57.5, 56.5, 55.75, 55.01, 54.99, 53.99, 54, 54), lat = c(62.67, 63.01, 63.24, 63.25, 63, 61, 60.75, 60.99, 60, 60.75, 61.75, 60, 60.99, 62.25))
+#### UPDATE TO 2017-2019 papers ####
+### manually remove unnecessary cols ####
+searchFiles <- list.files(pattern = "*update.txt")
 
-s1Coords <- s1Coords * -1
+cores <- detectCores()
 
-s1Dist <- earth.dist(s1Coords)
+searchList <- lapply(searchFiles, fread) # read data in parallel
+
+searchData <- rbindlist(searchList) # merge into one df
+
+colnames(searchData) <- c(
+  "authors", "title", "journal", "abstract", "year", "vol", "DOI")
+
+# add reviewer column and review progress column
+searchData$reviewer <- "me"
+
+searchData$screened <- "not yet"
+
+searchData <- searchData[!duplicated(DOI) & year != 2020, ] # dereplicate by DOI
+
+prevData <- fread("allWos.csv")
+
+searchData <- searchData[!DOI %in% prevData$DOI, ]
+
+# write to file
+write.csv(searchData, "preScreened_update.csv", row.names = F)
+
+#### manual screening of data update
+abstract_screener("preScreened_update.csv", aReviewer = "me", reviewerColumnName = "reviewer", unscreenedColumnName = "screened", unscreenedValue = "not yet", abstractColumnName = "abstract", titleColumnName = "title")
+
+
+
+
+confirmedStudies <- dat[dat$screened == "YES", ]
+maybeStudies <- dat[ dat$screened == "MAYBE", ]
+
+dir.create("pdfDwnlds") # create dir for pdf downloads
+
+confirmedStudies$filename <- paste("study", 1:nrow(confirmedStudies), sep = "") # create column of filenames
+
+confPFD <- PDFs_collect(confirmedStudies, DOIcolumn = "DOI", FileNamecolumn = "filename", directory = "./pdfDwnlds/", validatePDF = T, quiet = T, showSummary = T) # download pdfs, seems to hang at end!!
+
+dir.create("maybePapers")
+
+maybeStudies$filename <- paste("study", 1:nrow(maybeStudies), sep = "") # create column of filenames
+
+maybePDFs <- PDFs_collect(maybeStudies, DOIcolumn = "DOI", FileNamecolumn = "filename", directory = "./maybePapers/", validatePDF = T, quiet = T, showSummary = T)
