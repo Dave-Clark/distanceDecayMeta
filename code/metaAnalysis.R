@@ -83,20 +83,8 @@ write.csv(searchData, "preScreened_update.csv", row.names = F)
 #### manual screening of data update
 abstract_screener("preScreened_update.csv", aReviewer = "me", reviewerColumnName = "reviewer", unscreenedColumnName = "screened", unscreenedValue = "not yet", abstractColumnName = "abstract", titleColumnName = "title")
 
+# write studies to use to file, and add to extractedData file
+updateData <- fread("preScreened_update.csv")
+finalData <- updateData[screened %in% c("YES", "maybe")]
 
-
-
-confirmedStudies <- dat[dat$screened == "YES", ]
-maybeStudies <- dat[ dat$screened == "MAYBE", ]
-
-dir.create("pdfDwnlds") # create dir for pdf downloads
-
-confirmedStudies$filename <- paste("study", 1:nrow(confirmedStudies), sep = "") # create column of filenames
-
-confPFD <- PDFs_collect(confirmedStudies, DOIcolumn = "DOI", FileNamecolumn = "filename", directory = "./pdfDwnlds/", validatePDF = T, quiet = T, showSummary = T) # download pdfs, seems to hang at end!!
-
-dir.create("maybePapers")
-
-maybeStudies$filename <- paste("study", 1:nrow(maybeStudies), sep = "") # create column of filenames
-
-maybePDFs <- PDFs_collect(maybeStudies, DOIcolumn = "DOI", FileNamecolumn = "filename", directory = "./maybePapers/", validatePDF = T, quiet = T, showSummary = T)
+fwrite(finalData, "accept_studies_update.txt")
