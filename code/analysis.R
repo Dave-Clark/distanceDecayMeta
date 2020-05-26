@@ -34,10 +34,14 @@ accept <- dat[!dat$screened == "NO", ]
 write.table(accept, "accept_studies.txt", row.names = F, sep = "\t", quote = F)
 
 # for analysis
+# re-look at biome classifications
+# weighted vs unweighted unifrac
+
+
 library(data.table)
 library(ggplot2)
 library(patchwork)
-remotes::install_github("erocoar/ggparl")
+# remotes::install_github("erocoar/ggparl")
 library(ggparl)
 library(plotrix)
 library(DescTools)
@@ -69,13 +73,10 @@ hitYear <- ggplot(hitsYear, aes(x = year, y = value, group = variable)) +
   theme_bw() +
   scale_shape(labels = c("studies", "data points")) +
   scale_linetype(labels = c("studies", "data points")) +
-  labs(x = "Publication year", y = "Cumulative total",
-    title = "B") +
-  scale_x_continuous(breaks = seq(2005, 2017, 2), labels = seq(2005, 2017, 2)) +
+  labs(x = "Publication year", y = "Cumulative total") +
+  scale_x_continuous(breaks = seq(2005, 2019, 2), labels = seq(2005, 2019, 2)) +
   theme(axis.text = element_text(size = 16),
     axis.title = element_text(size = 18),
-    plot.title.position = "panel",
-    plot.title = element_text(size = 20),
     panel.grid.minor = element_blank(),
     panel.grid.major = element_blank(),
     legend.position = c(0.3, 0.9),
@@ -87,21 +88,19 @@ hitYear <- ggplot(hitsYear, aes(x = year, y = value, group = variable)) +
 hitsJourn <- acceptDat[, .N, by = journal][order(N), ]
 
 # plot studies per journal (top 15)
-journPlot <- ggplot(hitsJourn[N >= 4],
+journPlot <- ggplot(hitsJourn[N >= 5],
     aes(y = factor(journal, levels = journal), x = N)) +
   geom_bar(stat = "identity", fill = "grey", col = "grey") +
   theme_bw() +
-  labs(x = "Number of distance-decay relationships", title = "A") +
-  scale_x_continuous(expand = c(0, 0), limits = c(0, 51)) +
+  labs(x = "Number of distance-decay relationships") +
   theme(axis.text = element_text(size = 16),
-    plot.title.position = "panel",
-    plot.title = element_text(size = 20),
     axis.title.x = element_text(size = 18),
     axis.title.y = element_blank(),
     panel.grid.minor = element_blank(),
     panel.grid.major = element_blank())
 
-metaPanel <- journPlot + hitYear
+metaPanel <- journPlot + hitYear + plot_annotation(tag_levels = "A") &
+  theme(plot.tag = element_text(size = 20))
 
 ggsave("../graphics/Figure_1.pdf", metaPanel, height = 5.5, width = 14,
   device = "pdf")
@@ -114,8 +113,27 @@ acceptDat[method %in%
 acceptDat[method %in% c("morphology"), resolution := "Low"]
 
 ####################### analyses of context related variales ###################
-taxon <- aov(mantelZ ~ taxa, acceptDat)
+taxon <- aov(mantelZ ~ taxa, acceptDat[, if(.N > 3) .SD, by = taxa])
 summary(taxon)
+
+acceptDat[, taxa := factor(taxa,
+  levels = acceptDat[, .N, by = taxa][order(N, decreasing = T), taxa],
+  labels = c("Bacteria", "Fungi", expression(mu*"-Eukarya"), "Archaea", "Bacteria/\nArchaea",  "Bacteria/\nFungi", "Bacteria/\nEukarya", "All"))]
+
+taxonFig <- ggplot(acceptDat, aes(x = taxa, y = mantelR)) +
+  geom_hline(yintercept = 0, linetype = 2, colour = "grey") +
+  geom_boxjitter(jitter.alpha = 0.5, outlier.shape = NA) +
+  scale_x_discrete(labels = parse(text = levels(acceptDat$taxa))) +
+  labs(x = "Taxon", y = expression(Mantel[italic(r)])) +
+  theme_bw() +
+  theme(axis.text.x = element_text(
+      size = 14, angle = 90, vjust = 0.5, hjust = 1),
+    axis.text.y = element_text(size = 16),
+    axis.title = element_text(size = 18),
+    panel.grid = element_blank())
+
+ggsave("../graphics/Figire_S1.pdf", taxonFig, height = 5, width = 4,
+  device = "pdf")
 
 # test for biome effect
 biome <- aov(mantelZ ~ biome, acceptDat[, if(.N > 3) .SD, by = biome])
@@ -125,65 +143,64 @@ summary(biome)
 biomeTukey <- setDT(as.data.frame(TukeyHSD(biome)$biome), keep.rownames = T)
 names(biomeTukey)[ncol(biomeTukey)] <- "p_adj"
 
-# get maximum p val for all sponge comparisons
-biomeTukey[grep("sponge", rn), max(p_adj)]
-
-biomeTukey[grep("grassland", rn), ][order(p_adj), ]
-
 # order factor levels from highest to lowest mean
 acceptDat[, biome := factor(biome,
   levels = acceptDat[,
-    mean(mantelZ), by = biome][order(V1, decreasing=T), biome])]
+    mean(mantelR), by = biome][order(V1, decreasing=T), biome])]
 
-material <- aov(mantelZ ~ medium, acceptDat[, if(.N > 2) .SD, by = biome])
-materialTukey <- as.data.table(TukeyHSD(material)$medium, keep.rownames = T)
-names(materialTukey)[ncol(materialTukey)] <- "p_adj"
+# make dummy variable to remove interactions with small sample sizes
+acceptDat[, biome_medium := paste(biome, medium, sep = "_")]
+material <- aov(mantelZ ~ biome * medium,
+  acceptDat[, if(.N > 3) .SD, by = biome_medium])
 
-# order factor levels from highest to lowest mean
-acceptDat[, medium := factor(medium,
-  levels = acceptDat[,
-    mean(mantelZ), by = medium][order(V1, decreasing=T), medium])]
+materialTukey <- setDT(
+  as.data.frame(TukeyHSD(material)[[2]]), keep.rownames = T)
+biome_mediumTukey <- setDT(
+  as.data.frame(TukeyHSD(material)[[3]]), keep.rownames = T)
+names(biome_mediumTukey)[ncol(biome_mediumTukey)] <- "p_adj"
+biome_mediumTukey <- biome_mediumTukey[!is.na(p_adj)]
 
-biomePlot <- ggplot(acceptDat[, if(.N > 3) .SD, by = biome],
-    aes(x = biome, y = mantelZ)) +
-  geom_hline(yintercept = 0, linetype = 2, colour = "grey") +
-  geom_boxjitter(width = 0.6, outlier.shape = NA, jitter.alpha = 0.5) +
-  labs(x = "Biome", y = expression(Effect~size~(italic(Z[r]))), title = "A") +
+envPlot <- ggplot(acceptDat[, if(.N > 3) .SD, by = biome_medium],
+    aes(x = biome, y = mantelR)) +
+  geom_hline(yintercept = 0, linetype = 2, col = "grey") +
+  geom_boxjitter(jitter.alpha = 0.5, outlier.shape = NA) +
+  labs(x = "", y = expression(Mantel[r])) +
   theme_bw() +
-  theme(axis.text = element_text(size = 16),
+  theme(axis.text.x = element_text(
+      size = 14, angle = 90, vjust = 0.5, hjust = 1),
+    axis.text.y = element_text(size = 16),
     axis.title = element_text(size = 18),
-    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
-    plot.title.position = "plot",
-    plot.title = element_text(size = 20),
     panel.grid = element_blank())
 
-habitatPlot <- ggplot(acceptDat[, if(.N > 2) .SD, by = medium],
-    aes(x = medium, y = mantelZ)) +
-  geom_hline(yintercept = 0, linetype = 2, colour = "grey") +
-  geom_boxjitter(width = 0.6, outlier.shape = NA, jitter.alpha = 0.5) +
-  labs(x = "Habitat type", y = expression(Effect~size~(italic(Z[r]))),
-    title = "B") +
+medPlot <- ggplot(acceptDat[, if(.N > 3) .SD, by = biome_medium],
+    aes(x = medium, y = mantelR, col = medium)) +
+  geom_boxjitter(jitter.alpha = 0.5, outlier.shape = NA) +
+  facet_wrap(~ biome, scales = "free_x") +
+  labs(x = "", y = expression(Mantel[r]), col = "Habitat") +
   theme_bw() +
-  theme(axis.text = element_text(size = 16),
+  theme(axis.text.y = element_text(size = 16),
+    axis.text.x = element_blank(),
     axis.title = element_text(size = 18),
-    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
-    plot.title.position = "plot",
-    plot.title = element_text(size = 20),
-    panel.grid = element_blank())
+    panel.grid = element_blank(),
+    strip.text.x = element_text(size = 14),
+    legend.text = element_text(size = 14),
+    legend.title = element_text(size = 14))
 
-envPanel <- biomePlot + habitatPlot
+envPanel <- envPlot + medPlot +
+  plot_annotation(tag_levels = "A") &
+  theme(plot.tag = element_text(size = 20))
 
-ggsave("../graphics/Figure_2.pdf", envPanel, height = 5, width = 9,
+ggsave("../graphics/Figure_2.pdf", envPanel, height = 6, width = 12,
   device = "pdf")
 
 scaleLm <- lm(mantelZ ~ log10(scale), acceptDat)
 summary(scaleLm)
 
-scalePlot <- ggplot(acceptDat, aes(x = scale, y = mantelZ)) +
+scalePlot <- ggplot(acceptDat, aes(x = scale, y = mantelR)) +
   geom_point(size = 3, alpha = 0.8, colour = "grey") +
   scale_x_log10(breaks = c(0.0001, 0.001, 0.01, 0.1, 1, 10, 100, 1000, 10000)) +
-  stat_smooth(method = "lm", se = F, colour = "black") +
-  labs(x = "Spatial extent (km)", y = expression(Effect~size~(italic(Z[r])))) +
+  stat_smooth(method = "lm", se = T, colour = "black") +
+  labs(x = "Spatial extent (km)", y = expression(Mantel[r])) +
   theme_bw() +
   theme(axis.text = element_text(size = 16),
     axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
@@ -201,27 +218,66 @@ resolution <- aov(mantelZ ~ resolution, acceptDat)
 summary(resolution)
 TukeyHSD(resolution)
 
-coverage <- lm(mantelZ ~ log10(seqDepth), acceptDat)
-summary(coverage)
+method <- aov(mantelZ ~ method, acceptDat[, if(.N > 4) .SD, by = method])
 
 # relabel factor levels for plot
-plotMethods <- unique(acceptDat[! method %in% c("DGGE", "TRFLP"),
-  if(.N > 10) .SD, by = method][, method])
+plotMethods <- unique(acceptDat[, if(.N > 4) .SD, by = method][, method])
 
 acceptDat[, methodLab := ifelse(method %in% plotMethods, method, "Other")]
 acceptDat[, methodLab := factor(methodLab,
-  levels = c("illumina", "pyrosequencing", "sanger", "morphology", "Other"),
-  labels = c("Illumina MiSeq/HiSeq", "454 Pyrosequencing", "Sanger sequencing",
-    "Morphology/microscopy", "Other"))]
+  levels = c("illumina", "pyrosequencing", "TRFLP", "ARISA", "DGGE", "sanger", "Other", "morphology", "plfa"),
+  labels = c("Illumina MiSeq/HiSeq", "454 Pyrosequencing", "TRFLP", "ARISA", "DGGE", "Sanger", "Other", "Morphology/\nmicroscopy", "PLFA"))]
 
-depthPlot <- ggplot(acceptDat,
-    aes(x = seqDepth, y = mantelZ, col = methodLab)) +
+methodPlot <- ggplot(acceptDat[, if(.N > 4) .SD, by = method],
+  aes(x = methodLab, y = mantelR)) +
+  geom_hline(yintercept = 0, linetype = 2, colour = "grey") +
+  geom_boxjitter(jitter.alpha = 0.5, outlier.shape = NA) +
+  facet_wrap(~ resolution, scales = "free_x") +
+  labs(x = "Molecular method", y = expression(Mantel[r])) +
+  theme_bw() +
+  theme(axis.text.x = element_text(
+      size = 14, angle = 90, vjust = 0.5, hjust = 1),
+    axis.text.y = element_text(size = 16),
+    axis.title = element_text(size = 18),
+    panel.grid = element_blank(),
+    strip.text.x = element_text(size = 14))
+
+ggsave("../graphics/Figure_S2.pdf", methodPlot, height = 5, width = 8,
+  device = "pdf")
+
+acceptDat[, seqDepth := as.numeric(seqDepth)]
+coverage <- lm(mantelZ ~ log10(seqDepth), acceptDat)
+summary(coverage)
+
+sampleDepth <- lm(mantelZ ~ log10(nSamples), acceptDat)
+summary(sampleDepth)
+
+
+depthPlot <- ggplot(acceptDat[!is.na(seqDepth)],
+    aes(x = seqDepth, y = mantelR, col = methodLab)) +
   geom_point(size = 3, alpha = 0.6) +
-  stat_smooth(method = "lm", se = F, colour = "black") +
-  scale_x_log10(breaks = c(10, 100, 1000, 10000, 100000, 1000000)) +
-  scale_color_brewer(palette = "Dark2") +
+  stat_smooth(method = "lm", se = T, colour = "black") +
+  scale_x_log10(breaks = c(10, 100, 1000, 10000, 100000, 1000000, 10000000)) +
+  scale_colour_brewer(palette = "Set1") +
   labs(x = "Community coverage\n(sequences/individuals per sample)",
-    y = expression(Effect~size~(italic(Z[r])))) +
+    y = expression(Mantel[r])) +
+  scale_y_continuous(breaks = seq(-0.25, .75, 0.25)) +
+  theme_bw() +
+  theme(axis.text.y = element_text(size = 16),
+    axis.text.x = element_text(size = 16, angle = 45, hjust = 1, vjust = 1),
+    axis.title = element_text(size = 18),
+    legend.title = element_blank(),
+    legend.text = element_text(size = 14),
+    panel.grid = element_blank())
+
+samplePlot <- ggplot(acceptDat,
+    aes(x = nSamples, y = mantelR, col = methodLab)) +
+  geom_point(size = 3, alpha = 0.5) +
+  stat_smooth(method = "lm", se = T, colour = "black", linetype = 2) +
+  scale_x_log10(breaks = c(10, 100, 1000)) +
+  scale_colour_brewer(palette = "Set1") +
+  labs(x = "Number of samples",
+    y = expression(Mantel[r])) +
   theme_bw() +
   theme(axis.text = element_text(size = 16),
     axis.title = element_text(size = 18),
@@ -229,40 +285,23 @@ depthPlot <- ggplot(acceptDat,
     legend.text = element_text(size = 14),
     panel.grid = element_blank())
 
-ggsave("../graphics/Figure_4.pdf", depthPlot, height = 4.5, width = 7.5,
+samplePanel <- depthPlot + samplePlot + plot_layout(ncol = 1) +
+  plot_annotation(tag_levels = "A") &
+  theme(plot.tag = element_text(size = 20))
+
+ggsave("../graphics/Figure_4.pdf", samplePanel, height = 8, width = 7,
   device = "pdf")
 
-# test whether HTS produces significantly higher mantel coefs than other methods
-aov1 <- aov(mantelZ ~ resolution, acceptDat)
-summary(aov1)
-
-# same test but only for "significant" mantel coefs
-aov2 <- aov(mantelR ~ resolution, acceptDat[pValue <= 0.05])
-summary(aov2) # Approaching significance
-
-# does adding sample effort improve model
-lm3 <- lm(mantelR ~ log(nSamples) + log(seqDepth), acceptDat)
-summary(lm3)
-
-# effect of sample effort
-lm4 <- lm(mantelR ~ log(nSamples), acceptDat)
-summary(lm4) # NS
-
-# no real improvement
-lm5 <- lm(mantelR ~ log(nSamples) * log(seqDepth), acceptDat)
-
-# test ation between seq depth and sample effort
-cor.test(log(acceptDat$nSamples), log(acceptDat$seqDepth))
 
 # test whether indexes produce different results
 # exclude those with 3 or fewer occurences
 # perform anova test
-aov5 <- aov(mantelR ~ simIndex, acceptDat)
+aov5 <- aov(mantelR ~ simIndex, acceptDat[, if(.N > 3) .SD, by = simIndex])
 summary(aov5) # sig differences found
 
 # perform tukey test
 aov5Tukey <- setDT(as.data.frame(TukeyHSD(aov5)$simIndex), keep.rownames = T)
-names(aov5Tukey)[ncol(aov5Tukey)] <- "p_adj"
+setnames(aov5Tukey, old = "p adj", new = "p_adj")
 
 # get comparisons that are significantly different
 aov5Tukey[p_adj <= 0.05]
@@ -273,13 +312,19 @@ aov5Tukey[p_adj <= 0.05]
 # binary = jaccard, Raup-Crick, sorensen, simpson, beta sim
 acceptDat[, indType := "Binary"]
 acceptDat[
-  simIndex %in% c("bray", "Morisita-horn", "euclidean", "hellinger", "theta"), indType := "Abundance"]
-acceptDat[simIndex %in% c("unifrac", "betaMNTD", "betaMPD", "rao"),
+  simIndex %in% c("bray", "Morisita-horn", "Horn-morisita", "euclidean", "hellinger", "theta", "beta_bray", "canberra", "nes_bray"), indType := "Abundance"]
+acceptDat[simIndex %in% c("w_unifrac", "u_unifrac", "betaMNTD", "betaMPD", "rao", "Mash"),
   indType := "Phylogenetic"]
 
-# test different index types
-aov6 <- aov(mantelR ~ indType, acceptDat)
-TukeyHSD(aov6)
+indexAov <- aov(mantelZ ~ indType/simIndex,
+  acceptDat[, if(.N > 3) .SD, by = simIndex])
+summary(indexAov)
+
+indexTukey <- TukeyHSD(indexAov)
+indexTukey <- setDT(as.data.frame(indexTukey[[2]]), keep.rownames = T)
+setnames(indexTukey, old = "p adj", new = "p_adj")
+indexTukey <- indexTukey[!is.na(p_adj)]
+
 
 # subet indices with more than 3 coefficients
 simData <- acceptDat[, if(.N > 3) .SD, by = simIndex]
@@ -287,37 +332,50 @@ simData <- acceptDat[, if(.N > 3) .SD, by = simIndex]
 # reorder the factor levels
 simData$simIndex <- factor(simData$simIndex,
   levels = c("bray", "euclidean", "hellinger", "jaccard", "Raup-Crick",
-    "sorensen", "betaMNTD", "unifrac"),
+    "sorensen", "beta_sim", "betaMNTD", "u_unifrac", "w_unifrac"),
   labels = c("Bray-Curtis", "Euclidean", "Hellinger", "Jaccard", "Raup-Crick",
-    "S\U00F8rensen", "\U03B2-MNTD", "Unifrac"))
+    "S\U00F8rensen", "\U03B2-sim", "\U03B2-MNTD", "unweighted Unifrac", "weighted Unifrac"))
 
-indType <- ggplot(simData, aes(x = indType, y = mantelZ)) +
-  geom_boxjitter(width = 0.7, outlier.shape = NA) +
-  labs(x = "Similarity index type", y = expression(Effect~size~(italic(Z[r]))),
-    title = "A") +
+indType <- ggplot(simData, aes(x = indType, y = mantelR)) +
+  geom_boxjitter(width = 0.7, outlier.shape = NA, jitter.alpha = 0.5) +
+  labs(x = "Similarity index type", y = expression(Mantel[r])) +
   theme_bw() +
   theme(axis.text = element_text(size = 16),
     axis.text.x = element_text(angle = 45,  hjust = 1, vjust = 1),
     axis.title = element_text(size = 18),
-    plot.title = element_text(size = 20),
-    plot.title.position = "plot",
     panel.grid = element_blank())
 
-indIdent <- ggplot(simData, aes(x = simIndex, y = mantelZ)) +
-  geom_boxjitter(width = 0.6, outlier.shape = NA, alpha = 0.6) +
+indIdent <- ggplot(simData, aes(x = simIndex, y = mantelR)) +
+  geom_boxjitter(width = 0.6, outlier.shape = NA, jitter.alpha = 0.5) +
   facet_wrap(~indType, scales = "free_x") +
-  labs(x = "Similarity index", y = expression(Effect~size~(italic(Z[r]))),
-    title = "B") +
+  labs(x = "Similarity index", y = expression(Mantel[r])) +
   theme_bw() +
   theme(axis.text = element_text(size = 16),
     axis.text.x = element_text(angle = 45,  hjust = 1, vjust = 1),
     axis.title = element_text(size = 18),
-    plot.title = element_text(size = 20),
-    plot.title.position = "plot",
     strip.text.x = element_text(size = 14),
     panel.grid = element_blank())
 
-indexPanel <- indType + indIdent + plot_layout(widths = c(0.35, 1))
+indexPanel <- indType + indIdent + plot_layout(widths = c(0.35, 1)) +
+  plot_annotation(tag_levels = "A") &
+  theme(plot.tag = element_text(size = 20))
 
-ggsave("../graphics/Figure_5.pdf", indexPanel, height = 4.5, width = 10,
+ggsave("../graphics/Figure_5.pdf", indexPanel, height = 5, width = 10.5,
   device = cairo_pdf)
+
+######################################### Model comparison #####################
+allVars <- c("method", "nSamples", "seqDepth", "simIndex", "taxa", "medium",
+  "biome", "scale", "resolution", "indType")
+
+subData <- acceptDat[complete.cases(acceptDat[, .SD, .SDcols = allVars]), ]
+
+ecoModel <- lm(mantelZ ~ log10(scale) + taxa + biome + medium, subData)
+methModel <- lm(mantelZ ~ method + log(nSamples) + log10(seqDepth) + simIndex, subData)
+null <- lm(mantelZ ~ 1, subData)
+
+AIC(ecoModel, methModel)
+summary(ecoModel)
+summary(methModel)
+
+anova(null, ecoModel)
+anova(methModel, null)

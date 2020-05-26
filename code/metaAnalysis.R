@@ -57,8 +57,6 @@ maybePDFs <- PDFs_collect(maybeStudies, DOIcolumn = "DOI", FileNamecolumn = "fil
 ### manually remove unnecessary cols ####
 searchFiles <- list.files(pattern = "*update.txt")
 
-cores <- detectCores()
-
 searchList <- lapply(searchFiles, fread) # read data in parallel
 
 searchData <- rbindlist(searchList) # merge into one df
