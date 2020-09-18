@@ -43,6 +43,7 @@ library(ggplot2)
 library(patchwork)
 # remotes::install_github("erocoar/ggparl")
 library(ggparl)
+library(paletteer)
 library(plotrix)
 library(DescTools)
 
@@ -51,6 +52,17 @@ acceptDat <- fread("extractedData.csv")
 
 # z transform correlation coefficients
 acceptDat[, mantelZ := FisherZ(mantelR)]
+
+# rough funnel plot
+funPlot <- ggplot(acceptDat, aes(x = mantelR, y = nSamples)) +
+  geom_vline(xintercept = mean(acceptDat$mantelR), linetype = 2) +
+  geom_point(alpha = 0.7) +
+  labs(x = expression(Mantel[italic(r)]), y = "Sample size") +
+  scale_x_continuous(limits = c(-1, 1)) +
+  theme_bw() +
+  theme(axis.text = element_text(size = 16),
+    axis.title = element_text(size = 18),
+    panel.grid = element_blank())
 
 # summary stats
 acceptDat[, summary(mantelR)]
@@ -87,6 +99,13 @@ hitYear <- ggplot(hitsYear, aes(x = year, y = value, group = variable)) +
 # get number of studies per journal
 hitsJourn <- acceptDat[, .N, by = journal][order(N), ]
 
+hitsJourn[journal == "Science of the total environment",
+  journal := "Science of The Total Environment"]
+
+hitsJourn[journal == "ISME",
+  journal := "ISME J"]
+
+
 # plot studies per journal (top 15)
 journPlot <- ggplot(hitsJourn[N >= 5],
     aes(y = factor(journal, levels = journal), x = N)) +
@@ -102,7 +121,7 @@ journPlot <- ggplot(hitsJourn[N >= 5],
 metaPanel <- journPlot + hitYear + plot_annotation(tag_levels = "A") &
   theme(plot.tag = element_text(size = 20))
 
-ggsave("../graphics/Figure_1.pdf", metaPanel, height = 5.5, width = 14,
+ggsave("../graphics/Figure_S1.pdf", metaPanel, height = 5.5, width = 14,
   device = "pdf")
 
 # categorise methods into fingerprinting, HTS, or other
@@ -118,12 +137,11 @@ summary(taxon)
 
 acceptDat[, taxa := factor(taxa,
   levels = acceptDat[, .N, by = taxa][order(N, decreasing = T), taxa],
-  labels = c("Bacteria", "Fungi", expression(mu*"-Eukarya"), "Archaea", "Bacteria/\nArchaea",  "Bacteria/\nFungi", "Bacteria/\nEukarya", "All"))]
+  labels = c("Bacteria", "Fungi", " Other Eukarya", "Archaea", "Bacteria/\nArchaea",  "Bacteria/\nFungi", "Bacteria/\nEukarya", "All"))]
 
 taxonFig <- ggplot(acceptDat, aes(x = taxa, y = mantelR)) +
   geom_hline(yintercept = 0, linetype = 2, colour = "grey") +
   geom_boxjitter(jitter.alpha = 0.5, outlier.shape = NA) +
-  scale_x_discrete(labels = parse(text = levels(acceptDat$taxa))) +
   labs(x = "Taxon", y = expression(Mantel[italic(r)])) +
   theme_bw() +
   theme(axis.text.x = element_text(
@@ -132,7 +150,7 @@ taxonFig <- ggplot(acceptDat, aes(x = taxa, y = mantelR)) +
     axis.title = element_text(size = 18),
     panel.grid = element_blank())
 
-ggsave("../graphics/Figire_S1.pdf", taxonFig, height = 5, width = 4,
+ggsave("../graphics/Figure_1.pdf", taxonFig, height = 5, width = 5,
   device = "pdf")
 
 # test for biome effect
@@ -160,6 +178,10 @@ biome_mediumTukey <- setDT(
 names(biome_mediumTukey)[ncol(biome_mediumTukey)] <- "p_adj"
 biome_mediumTukey <- biome_mediumTukey[!is.na(p_adj)]
 
+# create custom simpsons palette
+simpsonPal <- paletteer_d("ggsci::springfield_simpsons")
+simpsonPal <- simpsonPal[c(1:3, 5, 9, 11, 14:16)]
+
 envPlot <- ggplot(acceptDat[, if(.N > 3) .SD, by = biome_medium],
     aes(x = biome, y = mantelR)) +
   geom_hline(yintercept = 0, linetype = 2, col = "grey") +
@@ -174,8 +196,9 @@ envPlot <- ggplot(acceptDat[, if(.N > 3) .SD, by = biome_medium],
 
 medPlot <- ggplot(acceptDat[, if(.N > 3) .SD, by = biome_medium],
     aes(x = medium, y = mantelR, col = medium)) +
-  geom_boxjitter(jitter.alpha = 0.5, outlier.shape = NA) +
+  geom_boxjitter(jitter.alpha = 0.7, outlier.shape = NA, alpha = 1) +
   facet_wrap(~ biome, scales = "free_x") +
+  scale_color_manual(values = simpsonPal) +
   labs(x = "", y = expression(Mantel[r]), col = "Habitat") +
   theme_bw() +
   theme(axis.text.y = element_text(size = 16),
@@ -196,11 +219,12 @@ ggsave("../graphics/Figure_2.pdf", envPanel, height = 6, width = 12,
 scaleLm <- lm(mantelZ ~ log10(scale), acceptDat)
 summary(scaleLm)
 
-scalePlot <- ggplot(acceptDat, aes(x = scale, y = mantelR)) +
+scalePlot <- ggplot(acceptDat, aes(x = scale * 1000, y = mantelR)) +
   geom_point(size = 3, alpha = 0.8, colour = "grey") +
-  scale_x_log10(breaks = c(0.0001, 0.001, 0.01, 0.1, 1, 10, 100, 1000, 10000)) +
+  scale_x_log10(
+    breaks = c(0.01, 0.1, 1, 10, 100, 1000, 10000, 100000, 1000000, 10000000)) +
   stat_smooth(method = "lm", se = T, colour = "black") +
-  labs(x = "Spatial extent (km)", y = expression(Mantel[r])) +
+  labs(x = "Spatial extent (m)", y = expression(Mantel[r])) +
   theme_bw() +
   theme(axis.text = element_text(size = 16),
     axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
@@ -255,10 +279,10 @@ summary(sampleDepth)
 
 depthPlot <- ggplot(acceptDat[!is.na(seqDepth)],
     aes(x = seqDepth, y = mantelR, col = methodLab)) +
-  geom_point(size = 3, alpha = 0.6) +
+  geom_point(size = 3, alpha = 0.7) +
   stat_smooth(method = "lm", se = T, colour = "black") +
   scale_x_log10(breaks = c(10, 100, 1000, 10000, 100000, 1000000, 10000000)) +
-  scale_colour_brewer(palette = "Set1") +
+  scale_color_manual(values = simpsonPal) +
   labs(x = "Community coverage\n(sequences/individuals per sample)",
     y = expression(Mantel[r])) +
   scale_y_continuous(breaks = seq(-0.25, .75, 0.25)) +
@@ -272,10 +296,10 @@ depthPlot <- ggplot(acceptDat[!is.na(seqDepth)],
 
 samplePlot <- ggplot(acceptDat,
     aes(x = nSamples, y = mantelR, col = methodLab)) +
-  geom_point(size = 3, alpha = 0.5) +
+  geom_point(size = 3, alpha = 0.8) +
   stat_smooth(method = "lm", se = T, colour = "black", linetype = 2) +
   scale_x_log10(breaks = c(10, 100, 1000)) +
-  scale_colour_brewer(palette = "Set1") +
+  scale_color_manual(values = simpsonPal) +
   labs(x = "Number of samples",
     y = expression(Mantel[r])) +
   theme_bw() +
