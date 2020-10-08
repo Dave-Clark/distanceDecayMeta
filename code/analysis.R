@@ -39,6 +39,7 @@ write.table(accept, "accept_studies.txt", row.names = F, sep = "\t", quote = F)
 
 
 library(data.table)
+library(lme4)
 library(ggplot2)
 library(patchwork)
 # remotes::install_github("erocoar/ggparl")
@@ -105,7 +106,6 @@ hitsJourn[journal == "Science of the total environment",
 hitsJourn[journal == "ISME",
   journal := "ISME J"]
 
-
 # plot studies per journal (top 15)
 journPlot <- ggplot(hitsJourn[N >= 5],
     aes(y = factor(journal, levels = journal), x = N)) +
@@ -132,6 +132,9 @@ acceptDat[method %in%
 acceptDat[method %in% c("morphology"), resolution := "Low"]
 
 ####################### analyses of context related variales ###################
+taxonLm <- lm(mantelZ ~ taxa, acceptDat[, if(.N > 3) .SD, by = taxa])
+
+# re run as aov for post hoc analysis
 taxon <- aov(mantelZ ~ taxa, acceptDat[, if(.N > 3) .SD, by = taxa])
 summary(taxon)
 
@@ -154,8 +157,11 @@ ggsave("../graphics/Figure_1.pdf", taxonFig, height = 5, width = 5,
   device = "pdf")
 
 # test for biome effect
-biome <- aov(mantelZ ~ biome, acceptDat[, if(.N > 3) .SD, by = biome])
+biomeLm <- lm(mantelZ ~ biome, acceptDat[, if(.N > 3) .SD, by = biome])
 summary(biome)
+
+# run as anova for post hoc analysis
+biome <- aov(mantelZ ~ biome, acceptDat[, if(.N > 3) .SD, by = biome])
 
 # conduct tukey test
 biomeTukey <- setDT(as.data.frame(TukeyHSD(biome)$biome), keep.rownames = T)
@@ -168,6 +174,12 @@ acceptDat[, biome := factor(biome,
 
 # make dummy variable to remove interactions with small sample sizes
 acceptDat[, biome_medium := paste(biome, medium, sep = "_")]
+
+# run as linear model
+materialLm <- lm(mantelZ ~ biome * medium,
+  acceptDat[, if(.N > 3) .SD, by = biome_medium])
+
+# run as anova for post-hoc analysis
 material <- aov(mantelZ ~ biome * medium,
   acceptDat[, if(.N > 3) .SD, by = biome_medium])
 
@@ -179,8 +191,8 @@ names(biome_mediumTukey)[ncol(biome_mediumTukey)] <- "p_adj"
 biome_mediumTukey <- biome_mediumTukey[!is.na(p_adj)]
 
 # create custom simpsons palette
-simpsonPal <- paletteer_d("ggsci::springfield_simpsons")
-simpsonPal <- simpsonPal[c(1:3, 5, 9, 11, 14:16)]
+simpsonFullPal <- paletteer_d("ggsci::springfield_simpsons")
+simpsonPal <- simpsonFullPal[c(1:3, 5, 9, 11, 14:16)]
 
 envPlot <- ggplot(acceptDat[, if(.N > 3) .SD, by = biome_medium],
     aes(x = biome, y = mantelR)) +
@@ -216,14 +228,61 @@ envPanel <- envPlot + medPlot +
 ggsave("../graphics/Figure_2.pdf", envPanel, height = 6, width = 12,
   device = "pdf")
 
+lakeLm <- lm(mantelZ ~ within_lake, acceptDat[!is.na(within_lake)])
+anova(lakeLm)
+
+acceptDat[, within_lake := fcase(within_lake == "within", "Within lake",
+  within_lake == "across", "Across lakes")]
+
+# test comparison of within-lake and between-lake studies
+lakePlot <- ggplot(acceptDat[!is.na(within_lake)],
+  aes(x = within_lake, y = mantelR)) +
+  geom_boxjitter(jitter.alpha = 0.7, outlier.shape = NA, alpha = 1) +
+  labs(x = "", y = expression(Mantel[r]), col = "Habitat") +
+  theme_bw() +
+  theme(axis.text = element_text(size = 16),
+    axis.title = element_text(size = 18),
+    panel.grid = element_blank())
+
+ggsave("../graphics/Figure_S2.pdf", lakePlot, height = 4, width = 4,
+  device = "pdf")
+
 scaleLm <- lm(mantelZ ~ log10(scale), acceptDat)
 summary(scaleLm)
 
-scalePlot <- ggplot(acceptDat, aes(x = scale * 1000, y = mantelR)) +
-  geom_point(size = 3, alpha = 0.8, colour = "grey") +
+#### NEED RANDOM INTERCEPT FOR STUDY EFFECT ####
+scaleLmer <- lmer(mantelZ ~ (1 + log10(scale) | title) + log10(scale),
+  acceptDat, REML = F)
+scaleLmer2 <- lmer(mantelZ ~ (1 | title) + log10(scale),
+  acceptDat, REML = F)
+scaleNull <- lmer(mantelZ ~ (1 | title), acceptDat, REML = F)
+AIC(scaleLmer2, scaleLmer) # use simpler random intercept only model
+#
+MuMIn::r.squaredGLMM(scaleLmer2)
+
+# get p value for scale
+coefs <- data.frame(coef(summary(scaleLmer2)))
+# use normal distribution to approximate p-value
+coefs$p.z <- 2 * (1 - pnorm(abs(coefs$t.value)))
+
+# using mantelR instead of Z
+scaleLmer2R <- lmer(mantelR ~ (1 | title) + log10(scale),
+  acceptDat, REML = F)
+
+scalePred <- data.table(scale = seq(
+  min(acceptDat$scale, na.rm = T),
+  max(acceptDat$scale, na.rm = T),
+  100))
+
+scalePred$prediction <- predict(scaleLmer2R, newdata = scalePred, re.form = NA)
+
+scalePlot <- ggplot(acceptDat,
+    aes(x = scale * 1000, y = mantelR)) +
+  geom_point(size = 3, alpha = 0.8, col = "grey") +
+  geom_line(data = scalePred, aes(x = scale * 1000, y = prediction),
+    linetype = 2, size = 1.1) +
   scale_x_log10(
     breaks = c(0.01, 0.1, 1, 10, 100, 1000, 10000, 100000, 1000000, 10000000)) +
-  stat_smooth(method = "lm", se = T, colour = "black") +
   labs(x = "Spatial extent (m)", y = expression(Mantel[r])) +
   theme_bw() +
   theme(axis.text = element_text(size = 16),
@@ -231,17 +290,20 @@ scalePlot <- ggplot(acceptDat, aes(x = scale * 1000, y = mantelR)) +
     axis.title = element_text(size = 18),
     panel.grid = element_blank())
 
-ggsave("../graphics/Figure_3.pdf", scalePlot, height = 4, width = 4.5,
+ggsave("../graphics/Figure_3.pdf", scalePlot, height = 4, width = 5,
   device = "pdf")
 
 # test for correlation between scale and sampling effort
 acceptDat[, cor.test(nSamples, scale)]
 
 ########################### Methodological differences #########################
+resolutionLm <- lm(mantelZ ~ resolution, acceptDat)
+
 resolution <- aov(mantelZ ~ resolution, acceptDat)
 summary(resolution)
 TukeyHSD(resolution)
 
+methodLm <- lm(mantelZ ~ method, acceptDat[, if(.N > 4) .SD, by = method])
 method <- aov(mantelZ ~ method, acceptDat[, if(.N > 4) .SD, by = method])
 
 # relabel factor levels for plot
@@ -266,21 +328,47 @@ methodPlot <- ggplot(acceptDat[, if(.N > 4) .SD, by = method],
     panel.grid = element_blank(),
     strip.text.x = element_text(size = 14))
 
-ggsave("../graphics/Figure_S2.pdf", methodPlot, height = 5, width = 8,
+ggsave("../graphics/Figure_S3.pdf", methodPlot, height = 5, width = 8,
   device = "pdf")
 
 acceptDat[, seqDepth := as.numeric(seqDepth)]
-coverage <- lm(mantelZ ~ log10(seqDepth), acceptDat)
+coverage <- lmer(mantelZ ~ (1 | title) + log10(seqDepth), acceptDat)
 summary(coverage)
 
-sampleDepth <- lm(mantelZ ~ log10(nSamples), acceptDat)
+# get p value for coverage
+coverageCoefs <- data.frame(coef(summary(coverage)))
+# use normal distribution to approximate p-value
+coverageCoefs$p.z <- 2 * (1 - pnorm(abs(coverageCoefs$t.value)))
+
+EnvStats::rosnerTest(na.omit(log10(acceptDat$seqDepth)), k = 2)
+
+coverage2 <- lmer(mantelZ ~ (1 | title) + log10(seqDepth),
+  acceptDat[log10(seqDepth) < 7.5, ])
+# get p value for coverage
+coverageCoefs2 <- data.frame(coef(summary(coverage2)))
+# use normal distribution to approximate p-value
+coverageCoefs2$p.z <- 2 * (1 - pnorm(abs(coverageCoefs2$t.value)))
+
+# generate predictions
+coveragePred <- data.table(seqDepth = seq(
+  min(na.omit(acceptDat$seqDepth)), max(na.omit(acceptDat$seqDepth)), 1000))
+
+coveragePred[, prediction := predict(coverage, newdata = coveragePred,
+  re.form = NA)]
+
+sampleDepth <- lmer(mantelZ ~ (1 | title) + log10(nSamples), acceptDat)
 summary(sampleDepth)
 
+# get p value for sample depth
+depthCoefs <- data.frame(coef(summary(sampleDepth)))
+# use normal distribution to approximate p-value
+depthCoefs$p.z <- 2 * (1 - pnorm(abs(depthCoefs$t.value)))
 
-depthPlot <- ggplot(acceptDat[!is.na(seqDepth)],
+depthPlot <- ggplot(data = acceptDat[!is.na(seqDepth)],
     aes(x = seqDepth, y = mantelR, col = methodLab)) +
   geom_point(size = 3, alpha = 0.7) +
-  stat_smooth(method = "lm", se = T, colour = "black") +
+  geom_line(data = coveragePred, aes(x = seqDepth, y = prediction),
+    linetype = 1, size = 1.1, col  = "black") +
   scale_x_log10(breaks = c(10, 100, 1000, 10000, 100000, 1000000, 10000000)) +
   scale_color_manual(values = simpsonPal) +
   labs(x = "Community coverage\n(sequences/individuals per sample)",
@@ -317,9 +405,11 @@ ggsave("../graphics/Figure_4.pdf", samplePanel, height = 8, width = 7,
   device = "pdf")
 
 
-# test whether indexes produce different results
+# test whether indices produce different results
 # exclude those with 3 or fewer occurences
 # perform anova test
+simIndexLm <- lm(mantelR ~ simIndex, acceptDat[, if(.N > 3) .SD, by = simIndex])
+
 aov5 <- aov(mantelR ~ simIndex, acceptDat[, if(.N > 3) .SD, by = simIndex])
 summary(aov5) # sig differences found
 
@@ -386,6 +476,11 @@ indexPanel <- indType + indIdent + plot_layout(widths = c(0.35, 1)) +
 
 ggsave("../graphics/Figure_5.pdf", indexPanel, height = 5, width = 10.5,
   device = cairo_pdf)
+
+# Reviewers suggested analysing differences between correlation types used
+# e.g. Pearson vs Spearman
+corType <- lm(mantelZ ~ correlation, data = acceptDat)
+summary(corType)
 
 ######################################### Model comparison #####################
 allVars <- c("method", "nSamples", "seqDepth", "simIndex", "taxa", "medium",
