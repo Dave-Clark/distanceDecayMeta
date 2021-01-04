@@ -34,7 +34,7 @@ accept <- dat[!dat$screened == "NO", ]
 write.table(accept, "accept_studies.txt", row.names = F, sep = "\t", quote = F)
 
 # for analysis
-# re-look at biome classifications
+# re-look at environment classifications
 # weighted vs unweighted unifrac
 
 
@@ -59,7 +59,7 @@ funPlot <- ggplot(acceptDat, aes(x = mantelR, y = nSamples)) +
   geom_vline(xintercept = mean(acceptDat$mantelR), linetype = 2) +
   geom_point(alpha = 0.7) +
   labs(x = expression(Mantel[italic(r)]), y = "Sample size") +
-  scale_x_continuous(limits = c(-1, 1)) +
+  spatialExtent_x_continuous(limits = c(-1, 1)) +
   theme_bw() +
   theme(axis.text = element_text(size = 16),
     axis.title = element_text(size = 18),
@@ -84,10 +84,10 @@ hitYear <- ggplot(hitsYear, aes(x = year, y = value, group = variable)) +
   geom_line(aes(linetype = variable), size = 1.2, color = "grey") +
   geom_point(aes(shape = variable), size = 4, col = "grey", alpha = 0.7) +
   theme_bw() +
-  scale_shape(labels = c("studies", "data points")) +
-  scale_linetype(labels = c("studies", "data points")) +
+  spatialExtent_shape(labels = c("studies", "data points")) +
+  spatialExtent_linetype(labels = c("studies", "data points")) +
   labs(x = "Publication year", y = "Cumulative total") +
-  scale_x_continuous(breaks = seq(2005, 2019, 2), labels = seq(2005, 2019, 2)) +
+  spatialExtent_x_continuous(breaks = seq(2005, 2019, 2), labels = seq(2005, 2019, 2)) +
   theme(axis.text = element_text(size = 16),
     axis.title = element_text(size = 18),
     panel.grid.minor = element_blank(),
@@ -156,46 +156,46 @@ taxonFig <- ggplot(acceptDat, aes(x = taxa, y = mantelR)) +
 ggsave("../graphics/Figure_1.pdf", taxonFig, height = 5, width = 5,
   device = "pdf")
 
-# test for biome effect
-biomeLm <- lm(mantelZ ~ biome, acceptDat[, if(.N > 3) .SD, by = biome])
-summary(biome)
+# test for environment effect
+environmentLm <- lm(mantelZ ~ environment, acceptDat[, if(.N > 3) .SD, by = environment])
+summary(environment)
 
 # run as anova for post hoc analysis
-biome <- aov(mantelZ ~ biome, acceptDat[, if(.N > 3) .SD, by = biome])
+environment <- aov(mantelZ ~ environment, acceptDat[, if(.N > 3) .SD, by = environment])
 
 # conduct tukey test
-biomeTukey <- setDT(as.data.frame(TukeyHSD(biome)$biome), keep.rownames = T)
-names(biomeTukey)[ncol(biomeTukey)] <- "p_adj"
+environmentTukey <- setDT(as.data.frame(TukeyHSD(environment)$environment), keep.rownames = T)
+names(environmentTukey)[ncol(environmentTukey)] <- "p_adj"
 
 # order factor levels from highest to lowest mean
-acceptDat[, biome := factor(biome,
+acceptDat[, environment := factor(environment,
   levels = acceptDat[,
-    mean(mantelR), by = biome][order(V1, decreasing=T), biome])]
+    mean(mantelR), by = environment][order(V1, decreasing=T), environment])]
 
 # make dummy variable to remove interactions with small sample sizes
-acceptDat[, biome_medium := paste(biome, medium, sep = "_")]
+acceptDat[, environment_habitat := paste(environment, habitat, sep = "_")]
 
 # run as linear model
-materialLm <- lm(mantelZ ~ biome * medium,
-  acceptDat[, if(.N > 3) .SD, by = biome_medium])
+materialLm <- lm(mantelZ ~ environment * habitat,
+  acceptDat[, if(.N > 3) .SD, by = environment_habitat])
 
 # run as anova for post-hoc analysis
-material <- aov(mantelZ ~ biome * medium,
-  acceptDat[, if(.N > 3) .SD, by = biome_medium])
+material <- aov(mantelZ ~ environment * habitat,
+  acceptDat[, if(.N > 3) .SD, by = environment_habitat])
 
 materialTukey <- setDT(
   as.data.frame(TukeyHSD(material)[[2]]), keep.rownames = T)
-biome_mediumTukey <- setDT(
+environment_habitatTukey <- setDT(
   as.data.frame(TukeyHSD(material)[[3]]), keep.rownames = T)
-names(biome_mediumTukey)[ncol(biome_mediumTukey)] <- "p_adj"
-biome_mediumTukey <- biome_mediumTukey[!is.na(p_adj)]
+names(environment_habitatTukey)[ncol(environment_habitatTukey)] <- "p_adj"
+environment_habitatTukey <- environment_habitatTukey[!is.na(p_adj)]
 
 # create custom simpsons palette
 simpsonFullPal <- paletteer_d("ggsci::springfield_simpsons")
 simpsonPal <- simpsonFullPal[c(1:3, 5, 9, 11, 14:16)]
 
-envPlot <- ggplot(acceptDat[, if(.N > 3) .SD, by = biome_medium],
-    aes(x = biome, y = mantelR)) +
+envPlot <- ggplot(acceptDat[, if(.N > 3) .SD, by = environment_habitat],
+    aes(x = environment, y = mantelR)) +
   geom_hline(yintercept = 0, linetype = 2, col = "grey") +
   geom_boxjitter(jitter.alpha = 0.5, outlier.shape = NA) +
   labs(x = "", y = expression(Mantel[r])) +
@@ -206,11 +206,11 @@ envPlot <- ggplot(acceptDat[, if(.N > 3) .SD, by = biome_medium],
     axis.title = element_text(size = 18),
     panel.grid = element_blank())
 
-medPlot <- ggplot(acceptDat[, if(.N > 3) .SD, by = biome_medium],
-    aes(x = medium, y = mantelR, col = medium)) +
+medPlot <- ggplot(acceptDat[, if(.N > 3) .SD, by = environment_habitat],
+    aes(x = habitat, y = mantelR, col = habitat)) +
   geom_boxjitter(jitter.alpha = 0.7, outlier.shape = NA, alpha = 1) +
-  facet_wrap(~ biome, scales = "free_x") +
-  scale_color_manual(values = simpsonPal) +
+  facet_wrap(~ environment, spatialExtents = "free_x") +
+  spatialExtent_color_manual(values = simpsonPal) +
   labs(x = "", y = expression(Mantel[r]), col = "Habitat") +
   theme_bw() +
   theme(axis.text.y = element_text(size = 16),
@@ -247,41 +247,41 @@ lakePlot <- ggplot(acceptDat[!is.na(within_lake)],
 ggsave("../graphics/Figure_S2.pdf", lakePlot, height = 4, width = 4,
   device = "pdf")
 
-scaleLm <- lm(mantelZ ~ log10(scale), acceptDat)
-summary(scaleLm)
+spatialExtentLm <- lm(mantelZ ~ log10(spatialExtent), acceptDat)
+summary(spatialExtentLm)
 
 #### NEED RANDOM INTERCEPT FOR STUDY EFFECT ####
-scaleLmer <- lmer(mantelZ ~ (1 + log10(scale) | title) + log10(scale),
+spatialExtentLmer <- lmer(mantelZ ~ (1 + log10(spatialExtent) | title) + log10(spatialExtent),
   acceptDat, REML = F)
-scaleLmer2 <- lmer(mantelZ ~ (1 | title) + log10(scale),
+spatialExtentLmer2 <- lmer(mantelZ ~ (1 | title) + log10(spatialExtent),
   acceptDat, REML = F)
-scaleNull <- lmer(mantelZ ~ (1 | title), acceptDat, REML = F)
-AIC(scaleLmer2, scaleLmer) # use simpler random intercept only model
+spatialExtentNull <- lmer(mantelZ ~ (1 | title), acceptDat, REML = F)
+AIC(spatialExtentLmer2, spatialExtentLmer) # use simpler random intercept only model
 #
-MuMIn::r.squaredGLMM(scaleLmer2)
+MuMIn::r.squaredGLMM(spatialExtentLmer2)
 
-# get p value for scale
-coefs <- data.frame(coef(summary(scaleLmer2)))
+# get p value for spatialExtent
+coefs <- data.frame(coef(summary(spatialExtentLmer2)))
 # use normal distribution to approximate p-value
 coefs$p.z <- 2 * (1 - pnorm(abs(coefs$t.value)))
 
 # using mantelR instead of Z
-scaleLmer2R <- lmer(mantelR ~ (1 | title) + log10(scale),
+spatialExtentLmer2R <- lmer(mantelR ~ (1 | title) + log10(spatialExtent),
   acceptDat, REML = F)
 
-scalePred <- data.table(scale = seq(
-  min(acceptDat$scale, na.rm = T),
-  max(acceptDat$scale, na.rm = T),
+spatialExtentPred <- data.table(spatialExtent = seq(
+  min(acceptDat$spatialExtent, na.rm = T),
+  max(acceptDat$spatialExtent, na.rm = T),
   100))
 
-scalePred$prediction <- predict(scaleLmer2R, newdata = scalePred, re.form = NA)
+spatialExtentPred$prediction <- predict(spatialExtentLmer2R, newdata = spatialExtentPred, re.form = NA)
 
-scalePlot <- ggplot(acceptDat,
-    aes(x = scale * 1000, y = mantelR)) +
+spatialExtentPlot <- ggplot(acceptDat,
+    aes(x = spatialExtent * 1000, y = mantelR)) +
   geom_point(size = 3, alpha = 0.8, col = "grey") +
-  geom_line(data = scalePred, aes(x = scale * 1000, y = prediction),
+  geom_line(data = spatialExtentPred, aes(x = spatialExtent * 1000, y = prediction),
     linetype = 2, size = 1.1) +
-  scale_x_log10(
+  spatialExtent_x_log10(
     breaks = c(0.01, 0.1, 1, 10, 100, 1000, 10000, 100000, 1000000, 10000000)) +
   labs(x = "Spatial extent (m)", y = expression(Mantel[r])) +
   theme_bw() +
@@ -290,16 +290,16 @@ scalePlot <- ggplot(acceptDat,
     axis.title = element_text(size = 18),
     panel.grid = element_blank())
 
-ggsave("../graphics/Figure_3.pdf", scalePlot, height = 4, width = 5,
+ggsave("../graphics/Figure_3.pdf", spatialExtentPlot, height = 4, width = 5,
   device = "pdf")
 
-# test for correlation between scale and sampling effort
-acceptDat[, cor.test(nSamples, scale)]
+# test for correlation between spatialExtent and sampling effort
+acceptDat[, cor.test(nSamples, spatialExtent)]
 
-# plot scale against environment and Habitat
-scaleEnv <- ggplot(acceptDat, aes(x = biome, y = scale * 1000)) +
+# plot spatialExtent against environment and Habitat
+spatialExtentEnv <- ggplot(acceptDat, aes(x = environment, y = spatialExtent * 1000)) +
   geom_boxplot() +
-  scale_y_log10() +
+  spatialExtent_y_log10() +
   labs(x = "Environment", y = "Spatial extent (m)") +
   theme_bw() +
   theme(axis.text = element_text(size = 16),
@@ -307,10 +307,10 @@ scaleEnv <- ggplot(acceptDat, aes(x = biome, y = scale * 1000)) +
     axis.title = element_text(size = 18),
     panel.grid = element_blank())
 
-scaleHabitat <- ggplot(acceptDat[!is.na(medium)],
-    aes(x = medium, y = scale * 1000)) +
+spatialExtentHabitat <- ggplot(acceptDat[!is.na(habitat)],
+    aes(x = habitat, y = spatialExtent * 1000)) +
   geom_boxplot() +
-  scale_y_log10() +
+  spatialExtent_y_log10() +
   labs(x = "Habitat", y = "Spatial extent (m)") +
   theme_bw() +
   theme(axis.text = element_text(size = 16),
@@ -318,12 +318,12 @@ scaleHabitat <- ggplot(acceptDat[!is.na(medium)],
     axis.title = element_text(size = 18),
     panel.grid = element_blank())
 
-scalePanel <- scaleEnv + scaleHabitat +
+spatialExtentPanel <- spatialExtentEnv + spatialExtentHabitat +
   plot_layout(ncol = 1) +
   plot_annotation(tag_levels = "A") &
   theme(plot.tag = element_text(size = 20))
 
-ggsave("../graphics/Figure_S3.pdf", scalePanel, height = 10, width = 6,
+ggsave("../graphics/Figure_S3.pdf", spatialExtentPanel, height = 10, width = 6,
   device = "pdf")
 
 ########################### Methodological differences #########################
@@ -348,7 +348,7 @@ methodPlot <- ggplot(acceptDat[, if(.N > 4) .SD, by = method],
   aes(x = methodLab, y = mantelR)) +
   geom_hline(yintercept = 0, linetype = 2, colour = "grey") +
   geom_boxjitter(jitter.alpha = 0.5, outlier.shape = NA) +
-  facet_wrap(~ resolution, scales = "free_x") +
+  facet_wrap(~ resolution, spatialExtents = "free_x") +
   labs(x = "Molecular method", y = expression(Mantel[r])) +
   theme_bw() +
   theme(axis.text.x = element_text(
@@ -399,11 +399,11 @@ depthPlot <- ggplot(data = acceptDat[!is.na(seqDepth)],
   geom_point(size = 3, alpha = 0.7) +
   geom_line(data = coveragePred, aes(x = seqDepth, y = prediction),
     linetype = 1, size = 1.1, col  = "black") +
-  scale_x_log10(breaks = c(10, 100, 1000, 10000, 100000, 1000000, 10000000)) +
-  scale_color_manual(values = simpsonPal) +
+  spatialExtent_x_log10(breaks = c(10, 100, 1000, 10000, 100000, 1000000, 10000000)) +
+  spatialExtent_color_manual(values = simpsonPal) +
   labs(x = "Community coverage\n(sequences/individuals per sample)",
     y = expression(Mantel[r])) +
-  scale_y_continuous(breaks = seq(-0.25, .75, 0.25)) +
+  spatialExtent_y_continuous(breaks = seq(-0.25, .75, 0.25)) +
   theme_bw() +
   theme(axis.text.y = element_text(size = 16),
     axis.text.x = element_text(size = 16, angle = 45, hjust = 1, vjust = 1),
@@ -416,8 +416,8 @@ samplePlot <- ggplot(acceptDat,
     aes(x = nSamples, y = mantelR, col = methodLab)) +
   geom_point(size = 3, alpha = 0.8) +
   stat_smooth(method = "lm", se = T, colour = "black", linetype = 2) +
-  scale_x_log10(breaks = c(10, 100, 1000)) +
-  scale_color_manual(values = simpsonPal) +
+  spatialExtent_x_log10(breaks = c(10, 100, 1000)) +
+  spatialExtent_color_manual(values = simpsonPal) +
   labs(x = "Number of samples",
     y = expression(Mantel[r])) +
   theme_bw() +
@@ -491,7 +491,7 @@ indType <- ggplot(simData, aes(x = indType, y = mantelR)) +
 
 indIdent <- ggplot(simData, aes(x = simIndex, y = mantelR)) +
   geom_boxjitter(width = 0.6, outlier.shape = NA, jitter.alpha = 0.5) +
-  facet_wrap(~indType, scales = "free_x") +
+  facet_wrap(~indType, spatialExtents = "free_x") +
   labs(x = "Similarity index", y = expression(Mantel[r])) +
   theme_bw() +
   theme(axis.text = element_text(size = 16),
@@ -513,12 +513,12 @@ corType <- lm(mantelZ ~ correlation, data = acceptDat)
 summary(corType)
 
 ######################################### Model comparison #####################
-allVars <- c("method", "nSamples", "seqDepth", "simIndex", "taxa", "medium",
-  "biome", "scale", "resolution", "indType")
+allVars <- c("method", "nSamples", "seqDepth", "simIndex", "taxa", "habitat",
+  "environment", "spatialExtent", "resolution", "indType")
 
 subData <- acceptDat[complete.cases(acceptDat[, .SD, .SDcols = allVars]), ]
 
-ecoModel <- lm(mantelZ ~ log10(scale) + taxa + biome + medium, subData)
+ecoModel <- lm(mantelZ ~ log10(spatialExtent) + taxa + environment + habitat, subData)
 methModel <- lm(mantelZ ~ method + log(nSamples) + log10(seqDepth) + simIndex, subData)
 null <- lm(mantelZ ~ 1, subData)
 
