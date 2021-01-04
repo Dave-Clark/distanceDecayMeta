@@ -296,6 +296,36 @@ ggsave("../graphics/Figure_3.pdf", scalePlot, height = 4, width = 5,
 # test for correlation between scale and sampling effort
 acceptDat[, cor.test(nSamples, scale)]
 
+# plot scale against environment and Habitat
+scaleEnv <- ggplot(acceptDat, aes(x = biome, y = scale * 1000)) +
+  geom_boxplot() +
+  scale_y_log10() +
+  labs(x = "Environment", y = "Spatial extent (m)") +
+  theme_bw() +
+  theme(axis.text = element_text(size = 16),
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+    axis.title = element_text(size = 18),
+    panel.grid = element_blank())
+
+scaleHabitat <- ggplot(acceptDat[!is.na(medium)],
+    aes(x = medium, y = scale * 1000)) +
+  geom_boxplot() +
+  scale_y_log10() +
+  labs(x = "Habitat", y = "Spatial extent (m)") +
+  theme_bw() +
+  theme(axis.text = element_text(size = 16),
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+    axis.title = element_text(size = 18),
+    panel.grid = element_blank())
+
+scalePanel <- scaleEnv + scaleHabitat +
+  plot_layout(ncol = 1) +
+  plot_annotation(tag_levels = "A") &
+  theme(plot.tag = element_text(size = 20))
+
+ggsave("../graphics/Figure_S3.pdf", scalePanel, height = 10, width = 6,
+  device = "pdf")
+
 ########################### Methodological differences #########################
 resolutionLm <- lm(mantelZ ~ resolution, acceptDat)
 
@@ -328,7 +358,7 @@ methodPlot <- ggplot(acceptDat[, if(.N > 4) .SD, by = method],
     panel.grid = element_blank(),
     strip.text.x = element_text(size = 14))
 
-ggsave("../graphics/Figure_S3.pdf", methodPlot, height = 5, width = 8,
+ggsave("../graphics/Figure_S4.pdf", methodPlot, height = 5, width = 8,
   device = "pdf")
 
 acceptDat[, seqDepth := as.numeric(seqDepth)]
